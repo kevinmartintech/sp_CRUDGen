@@ -7,46 +7,43 @@ GO
 SET QUOTED_IDENTIFIER, ANSI_NULLS ON;
 GO
 /**********************************************************************************************************************
-** Author:      Kevin Martin Tech
+** Author:      Kevin Martin
 ** More Info:   http://kevinmartin.tech/sp_CRUDGen
 ** Description: Used to generate the stored procedures listed below for your tables.
-**               C = [TABLE-NAME]Create
-**               C = [TABLE-NAME]CreateMultiple? Could use JSON to serialize the object and deserialize the object into a temp table for multiple records
-**               R = [TABLE-NAME]Read
-**               R = [TABLE-NAME]ReadEager
-**               U = [TABLE-NAME]Update
-**               U = [TABLE-NAME]UpdateMultiple?
-**               U = [TABLE-NAME]Upsert
-**               U = [TABLE-NAME]UpsertMultiple?
-**               U = [TABLE-NAME]Indate?
-**               U = [TABLE-NAME]IndateMultiple?
-**               D = [TABLE-NAME]Delete
-**               D = [TABLE-NAME]DeleteMultiple?
-**               S = [TABLE-NAME]Search (dynamic T-SQL optional parameters, kitchen sink, swiss army knife)
+**               * [TABLE-NAME]Create (insert a single record)
+**               * [TABLE-NAME]CreateMultiple? Could use JSON to serialize the object and deserialize the object into a temp table for multiple records
+**               * [TABLE-NAME]Read (read a single record)
+**               * [TABLE-NAME]ReadEager (read a single record and joined table columns)
+**               * [TABLE-NAME]Update (update a single record)
+**               * [TABLE-NAME]UpdateMultiple?
+**               * [TABLE-NAME]Upsert (try to update the record first and fail back to insert)
+**               * [TABLE-NAME]UpsertMultiple?
+**               * [TABLE-NAME]Indate (try to insert the record first and fail back to update)
+**               * [TABLE-NAME]IndateMultiple?
+**               * [TABLE-NAME]Delete (delete a single record)
+**               * [TABLE-NAME]DeleteMultiple?
+**               * [TABLE-NAME]Search (dynamic T-SQL for optional parameters, kitchen sink, swiss army knife)
 **********************************************************************************************************************/
-ALTER PROCEDURE dbo.sp_CRUDGen
---@GenerateStoredProcedures bit
---   ,@SchemaTableName          nvarchar(200)
---,@Version           VARCHAR(30)   = NULL OUTPUT --TODO: Add version info
---,@VersionCheckMode  BIT           = 0
---,IsGenerateCreate   BIT
---,IsGenerateRead     BIT
---,IsGenerateUpdate   BIT
---,IsGenerateDelete   BIT
---,IsGenerateSearch   BIT
+ALTER PROCEDURE dbo.sp_CRUDGen (
+    @GenerateStoredProcedures bit           = 0     /* 0 = Will only create the generated T-SQL to create the stored procedures, 1 = Will also create the stored procedures */
+   ,@SchemaTableName          nvarchar(200) = NULL  /* NULL = Generate all tables, [SCHEMA.TABLENAME] or [TABLENAME] for just one table */
+   ,@GenerateCreate           bit           = 1     /* 1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure */
+   ,@GenerateRead             bit           = 1     /* 1 = Generate the Read stored procedure, 0 = Will not generate the Read stored procedure */
+   ,@GenerateReadEager        bit           = 1     /* 1 = Generate the ReadEager stored procedure, 0 = Will not generate the ReadEager stored procedure */
+   ,@GenerateUpdate           bit           = 1     /* 1 = Generate the Update stored procedure, 0 = Will not generate the Update stored procedure */
+   ,@GenerateUpsert           bit           = 1     /* 1 = Generate the Upsert stored procedure, 0 = Will not generate the Upsert stored procedure */
+   ,@GenerateIndate           bit           = 1     /* 1 = Generate the Indate stored procedure, 0 = Will not generate the Indate stored procedure */
+   ,@GenerateDelete           bit           = 1     /* 1 = Generate the Delete stored procedure, 0 = Will not generate the Delete stored procedure */
+   ,@GenerateSearch           bit           = 1     /* 1 = Generate the Search stored procedure, 0 = Will not generate the Search stored procedure */
+   ,@VersionCheckMode         bit           = 0     /* 1 = Will only return the version number and not execute, 0 = Will execute this stored procedure */
+   ,@Version                  varchar(30)   = NULL OUTPUT
+   ,@VersionDate              datetime      = NULL OUTPUT
+)
+WITH EXECUTE AS CALLER, RECOMPILE
 AS
     BEGIN
-
         SET NOCOUNT, XACT_ABORT ON;
         SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-
-        DECLARE
-            @GenerateStoredProcedures bit
-           ,@SchemaTableName          nvarchar(200);
-
-
-        SET @SchemaTableName = N'person';
-        SET @GenerateStoredProcedures = 0;
 
         /*
 NOTES:
@@ -57,8 +54,8 @@ NOTES:
 
 --TODO: review window functions OVER(), there is a default being used that should be specified.
 --TODO: figure out what can be turned into a parameter
---TODO: make all OUTPUT output the full columns
 
+    * Execute in database, not master.
     * 20 database tables takes about 1 minute to run. There is some looping in dbo.sp_CRUDGen that could be changed to set based operation if anyone would like.
     * Fork the repo to change the T-SQL style (or format with a tool like Regdate SQL Prompt) and naming conventions. Remember to create a pull request if you added something cool so the rest of the community can benefit.
     * Table names should be PascalCase.
@@ -73,90 +70,98 @@ NOTES:
     * Do not used SQL Server reserved keywords.
 
 SUPPORTS:
-    dbo.sp_CRUDGen runs on SQL Server 2005, 2008, 2008 R2, 2012, 2014,2016, 2017, 2019, ?Azure SQL Server
+    Runs on SQL Server 2005, 2008, 2008 R2, 2012, 2014, 2016, 2017, 2019, ?Azure SQL Server
 
 
 */
 
         /**********************************************************************************************************************
-        ** T-SQL string varibles
+        ** Declare varibles
         **********************************************************************************************************************/
-        DECLARE
-            @ExecuteOutputString                    nvarchar(MAX)
-           ,@ExecuteCreateString                    nvarchar(MAX)
-           ,@ExecuteReadString                      nvarchar(MAX)
-           ,@ExecuteReadEagerString                 nvarchar(MAX)
-           ,@ExecuteDropString                      nvarchar(MAX)
-           ,@ExecuteUpdateString                    nvarchar(MAX)
-           ,@ExecuteUpsertString                    nvarchar(MAX)
-           ,@StringToExecuteDelete                  nvarchar(MAX)
-           ,@ExecuteSearchString                    nvarchar(MAX)
-           ,@ParameterString                        nvarchar(MAX)
-           ,@SP_ExecuteSQLParameterDefinitionString nvarchar(MAX)
-           ,@SP_ExecuteSQLParametersString          nvarchar(MAX)
-           ,@SelectString                           nvarchar(MAX)
-           ,@InsertIntoString                       nvarchar(MAX)
-           ,@InsertIntoValuesString                 nvarchar(MAX)
-           ,@UpdateString                           nvarchar(MAX)
-           ,@OutputString                           nvarchar(MAX)
-           ,@FromString                             nvarchar(MAX)
-           ,@WhereString                            nvarchar(MAX)
-           ,@BetweenString                          nvarchar(MAX)
-           ,@TempTableListString                    nvarchar(MAX)
-           ,@OrderColumnString                      nvarchar(MAX)
-           ,@IdentityColumnNameString               nvarchar(MAX)
-           ,@IdentityColumnTableAliasString         nvarchar(MAX)
-           ,@TemporaryTableStringColumnType         nvarchar(MAX)
-           ,@TemporaryTableStringType               nvarchar(MAX)
-           ,@UserNameString                         nvarchar(MAX)
-           ,@CreateTimeString                       nvarchar(MAX)
-           ,@NewLineString                          nvarchar(MAX)
-           ,@MITLicenseCommentString                nvarchar(MAX)
-           ,@AutoGeneratedCommentString             nvarchar(MAX);
+        DECLARE @ScriptVersionName nvarchar(50);
+        DECLARE @ExecuteOutputString nvarchar(MAX);
+        DECLARE @ExecuteCreateString nvarchar(MAX);
+        DECLARE @ExecuteReadString nvarchar(MAX);
+        DECLARE @ExecuteReadEagerString nvarchar(MAX);
+        DECLARE @ExecuteDropString nvarchar(MAX);
+        DECLARE @ExecuteUpdateString nvarchar(MAX);
+        DECLARE @ExecuteUpsertString nvarchar(MAX);
+        DECLARE @ExecuteIndateString nvarchar(MAX);
+        DECLARE @StringToExecuteDelete nvarchar(MAX);
+        DECLARE @ExecuteSearchString nvarchar(MAX);
+        DECLARE @ParameterString nvarchar(MAX);
+        DECLARE @SP_ExecuteSQLParameterDefinitionString nvarchar(MAX);
+        DECLARE @SP_ExecuteSQLParametersString nvarchar(MAX);
+        DECLARE @SelectString nvarchar(MAX);
+        DECLARE @InsertIntoString nvarchar(MAX);
+        DECLARE @InsertIntoValuesString nvarchar(MAX);
+        DECLARE @UpdateString nvarchar(MAX);
+        DECLARE @OutputString nvarchar(MAX);
+        DECLARE @FromString nvarchar(MAX);
+        DECLARE @WhereString nvarchar(MAX);
+        DECLARE @BetweenVariableString nvarchar(MAX);
+        DECLARE @TempTableListString nvarchar(MAX);
+        DECLARE @OrderColumnString nvarchar(MAX);
+        DECLARE @IdentityColumnNameString nvarchar(MAX);
+        DECLARE @IdentityColumnTableAliasString nvarchar(MAX);
+        DECLARE @TemporaryTableStringColumnType nvarchar(MAX);
+        DECLARE @TemporaryTableStringType nvarchar(MAX);
+        DECLARE @UserNameString nvarchar(MAX);
+        DECLARE @CreateTimeString nvarchar(MAX);
+        DECLARE @NewLineString nvarchar(MAX);
+        DECLARE @MITLicenseCommentString nvarchar(MAX);
+        DECLARE @AutoGeneratedCommentString nvarchar(MAX);
+        DECLARE @SeparatorStartingPosition int;
+        DECLARE @StoreProcedureId int;
+        DECLARE @SchemaName nvarchar(MAX);
+        DECLARE @TableName nvarchar(MAX);
+        DECLARE @TableDescription nvarchar(MAX);
+        DECLARE @ProcedureName nvarchar(MAX);
+        DECLARE @ProcedureType nvarchar(MAX);
+        DECLARE @table_object_id int;
 
-
+        /**********************************************************************************************************************
+        ** Set varibles
+        **********************************************************************************************************************/
+        SET @Version = '0.11.8';
+        SET @VersionDate = '20210427';
+        SET @ScriptVersionName = N'sp_CRUDGen v' + @Version + N' - ' + DATENAME(MONTH, @VersionDate) + N' ' + RIGHT('0' + DATENAME(DAY, @VersionDate), 2) + N', ' + DATENAME(YEAR, @VersionDate);
         SET @ExecuteOutputString = N'';
         SET @UserNameString = CAST(SYSTEM_USER AS nvarchar(MAX));
         SET @CreateTimeString = CAST(CONVERT(nvarchar(30), GETUTCDATE(), 121) AS nvarchar(MAX)) + N' +00:00';
         SET @NewLineString = CAST(CHAR(13) + CHAR(10) AS nvarchar(MAX));
-        SET @MITLicenseCommentString = N'';
-        --        SET @MITLicenseCommentString = N'/**********************************************************************************************************************
-        --** MIT License
-        --** 
-        --** Copyright (c) ' + CAST(YEAR(GETUTCDATE()) AS nvarchar(MAX)) + N' Kevin Martin Tech, LLC. (http://kevinmartin.tech)
-        --** 
-        --** Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
-        --** documentation files (the "Software"), to deal in the Software without restriction, including without limitation the 
-        --** rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to 
-        --** permit persons to whom the Software is furnished to do so, subject to the following conditions:
-        --** 
-        --** The above copyright notice and this permission notice shall be included in all copies or substantial portions of 
-        --** the Software.
-        --** 
-        --** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE 
-        --** WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS 
-        --** OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
-        --** OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-        --**********************************************************************************************************************/';
-        SET @AutoGeneratedCommentString = N'/* <auto-generated></auto-generated> */';
-        --        SET @AutoGeneratedCommentString = N'/* <auto-generated>
-        -- This stored procedure was generated from the stored procedure named ' + CAST(ISNULL(OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID), 'dbo.sp_CRUDGen') AS nvarchar(MAX)) + N'
-        -- NOTES: You can remove this comment section to keep this stored procedure from being overwritten.
-        --        You can/should remove SELECT, UPDATE columns or FROM JOINs that are not needed, this will make the execution go faster.
-        --</auto-generated> */';
+        --SET @MITLicenseCommentString = N'';
+        SET @MITLicenseCommentString = N'/**********************************************************************************************************************
+** MIT License
+** 
+** Copyright (c) ' + CAST(YEAR(GETUTCDATE()) AS nvarchar(MAX)) + N' Kevin Martin Tech, LLC. (http://kevinmartin.tech)
+** 
+** Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
+** documentation files (the "Software"), to deal in the Software without restriction, including without limitation the 
+** rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to 
+** permit persons to whom the Software is furnished to do so, subject to the following conditions:
+** 
+** The above copyright notice and this permission notice shall be included in all copies or substantial portions of 
+** the Software.
+** 
+** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE 
+** WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS 
+** OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
+** OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+**********************************************************************************************************************/';
+        --SET @AutoGeneratedCommentString = N'/* <auto-generated></auto-generated> */';
+        SET @AutoGeneratedCommentString = N'/* <auto-generated>
+      This stored procedure was generated from the stored procedure named ' + CAST(ISNULL(OBJECT_SCHEMA_NAME(@@PROCID) + '.' + OBJECT_NAME(@@PROCID), 'dbo.sp_CRUDGen') AS nvarchar(MAX)) + N'
+      NOTES: You can remove this comment section to keep this stored procedure from being overwritten.
+             You can/should remove SELECT, UPDATE columns or FROM JOINs that are not needed.
+</auto-generated> */';
 
-        /**********************************************************************************************************************
-        ** Varibles for looping over the list of stored procedures
-        **********************************************************************************************************************/
-        DECLARE
-            @StoreProcedureId int
-           ,@SchemaName       nvarchar(MAX)
-           ,@TableName        nvarchar(MAX)
-           ,@TableDescription nvarchar(MAX)
-           ,@ProcedureName    nvarchar(MAX)
-           ,@ProcedureType    nvarchar(MAX)
-           ,@table_object_id  int;
-
+        /* Exit if only the version is being checked */
+        IF @VersionCheckMode = 1
+            BEGIN
+                RAISERROR(N'%s', 0, 1, @ScriptVersionName) WITH NOWAIT;
+                RETURN 0;
+            END;
 
         /**********************************************************************************************************************
         ** Create and load the stored procedure table
@@ -179,7 +184,23 @@ SUPPORTS:
            ,IsProcessedFlag     bit           NOT NULL
         );
 
-        --TODO: make dymanic with NULL or a table ane
+        /* Parse the passed in parameter */
+        IF @SchemaTableName IS NOT NULL
+            BEGIN
+                SET @SeparatorStartingPosition = CHARINDEX('.', @SchemaTableName);
+                IF @SeparatorStartingPosition > 0
+                    BEGIN
+                        SELECT
+                            @SchemaName = LEFT(@SchemaTableName, @SeparatorStartingPosition - 1)
+                           ,@TableName  = RIGHT(@SchemaTableName, LEN(@SchemaTableName) - @SeparatorStartingPosition);
+                    END;
+                ELSE
+                    BEGIN
+                        SELECT  @SchemaName = NULL, @TableName = @SchemaTableName;
+                    END;
+            END;
+
+        /* Insert into stored procedure list */
         INSERT INTO #StoreProcedureList (
             table_object_id
            ,table_schema_id
@@ -246,27 +267,53 @@ SUPPORTS:
             CROSS JOIN (
                 SELECT
                     ProcedureType = 'Create'
+                WHERE
+                    @GenerateCreate = 1
                 UNION ALL
                 SELECT
                     ProcedureType = 'Read'
+                WHERE
+                    @GenerateRead = 1
                 UNION ALL
                 SELECT
                     ProcedureType = 'ReadEager'
+                WHERE
+                    @GenerateReadEager = 1
                 UNION ALL
                 SELECT
                     ProcedureType = 'Update'
+                WHERE
+                    @GenerateUpdate = 1
                 UNION ALL
                 SELECT
                     ProcedureType = 'Upsert'
+                WHERE
+                    @GenerateUpsert = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'Indate'
+                WHERE
+                    @GenerateIndate = 1
                 UNION ALL
                 SELECT
                     ProcedureType = 'Delete'
+                WHERE
+                    @GenerateDelete = 1
                 UNION ALL
                 SELECT
                     ProcedureType = 'Search'
+                WHERE
+                    @GenerateSearch = 1
             )                                       AS P
-        --WHERE
-        --    T.name IN (@SchemaTableName)
+        WHERE
+            (
+            T.name = @TableName
+          OR @TableName IS NULL
+        )
+        AND (
+            S.name = @SchemaName
+          OR @SchemaName IS NULL
+        )
         ORDER BY
             S.name
            ,T.name
@@ -347,7 +394,7 @@ SUPPORTS:
                 SET @OutputString = N'';
                 SET @FromString = N'';
                 SET @WhereString = N'';
-                SET @BetweenString = N'';
+                SET @BetweenVariableString = N'';
                 SET @TempTableListString = N'';
                 SET @OrderColumnString = N'';
                 SET @IdentityColumnNameString = N'';
@@ -360,6 +407,7 @@ SUPPORTS:
                 SET @ExecuteReadEagerString = N'';
                 SET @ExecuteUpdateString = N'';
                 SET @ExecuteUpsertString = N'';
+                SET @ExecuteIndateString = N'';
                 SET @StringToExecuteDelete = N'';
                 SET @ExecuteSearchString = N'';
                 SET @HasRowVersionStampFlag = 0;
@@ -532,7 +580,7 @@ SUPPORTS:
                            ,parent_table              = ATB.parent_table
                            ,parent_column             = ATB.parent_column
                            ,parent_column_is_nullable = ATB.parent_column_is_nullable
-                    FROM
+                      FROM
                         -- SQL Prompt formatting off
                         AddBaseTable AS ATB 
                         CROSS APPLY (SELECT REPLACE(ATB.referenced_table COLLATE Latin1_General_BIN, 'a', N'')  AS referenced_table) AS R1 /* TRANSLATE() would work with one line but is only supported in 2017+ */
@@ -861,6 +909,63 @@ SUPPORTS:
                         SET @HasDateTimeOffsetFlag = 0;
                     END;
 
+                /**********************************************************************************************************************
+                ** Build column list for the output temporary table
+                **********************************************************************************************************************/
+                IF @ProcedureType IN (N'Create', N'Update', N'Upsert', N'Indate')
+                    BEGIN
+                        SELECT
+                            @TemporaryTableStringColumnType = @TemporaryTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + N' NULL'
+                           ,@TemporaryTableStringType       = @TemporaryTableStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName)
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth          = 0
+                        AND CL.IsComputedFlag = 0
+                        --AND CL.IsIdentityFlag = 0
+                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
+                        --AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@TemporaryTableStringColumnType) > 0
+                            BEGIN
+                                SET @TemporaryTableStringColumnType = RIGHT(@TemporaryTableStringColumnType, LEN(@TemporaryTableStringColumnType) - 20);
+                            END;
+
+                        IF LEN(@TemporaryTableStringType) > 0
+                            BEGIN
+                                SET @TemporaryTableStringType = RIGHT(@TemporaryTableStringType, LEN(@TemporaryTableStringType) - 20);
+                            END;
+
+                    END;
+
+                IF @ProcedureType IN (N'Create', N'Update', N'Upsert', N'Indate')
+                    BEGIN
+                        /**********************************************************************************************************************
+                        ** Build the OUTPUT clause
+                        **********************************************************************************************************************/
+                        SELECT
+                            @OutputString = @OutputString + @NewLineString + N'/*INDENT SPACES*/,Inserted.' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                  THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                             ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                         END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth = 0
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+
+                        /* Fix the first item */
+                        IF LEN(@OutputString) > 0
+                            BEGIN
+                                SET @OutputString = RIGHT(@OutputString, LEN(@OutputString) - 20);
+                            END;
+
+                    END;
 
                 /**********************************************************************************************************************
                 ** Build the FROM clause
@@ -926,13 +1031,11 @@ SUPPORTS:
                             BEGIN
                                 IF @parent_column_is_nullable = 1
                                     BEGIN
-                                        SET @FromString = @FromString + N'
-/*[JOIN SPACE]*/LEFT OUTER JOIN '       ;
+                                        SET @FromString = @FromString + @NewLineString + N'/*INDENT SPACES*/LEFT OUTER JOIN ';
                                     END;
                                 ELSE
                                     BEGIN
-                                        SET @FromString = @FromString + N'
-/*[JOIN SPACE]*/INNER JOIN '            ;
+                                        SET @FromString = @FromString + @NewLineString + N'/*INDENT SPACES*/INNER JOIN ';
                                     END;
                             END;
 
@@ -953,8 +1056,7 @@ SUPPORTS:
                                                                                                                                                                                   THEN N' /* ' + @referenced_table_description + N' */'
                                                                                                                                                                              ELSE N''
                                                                                                                                                                          END;
-                                     SET @FromString = @FromString + N'
-/*[ON SPACE]*/ON '                                     + @parent_alias + N'.' + QUOTENAME(@parent_column) + N' = ' + @referenced_alias + N'.' + QUOTENAME(@referenced_column);
+                                     SET @FromString = @FromString + @NewLineString + N'/*[ON SPACE]*/ON ' + @parent_alias + N'.' + QUOTENAME(@parent_column) + N' = ' + @referenced_alias + N'.' + QUOTENAME(@referenced_column);
                                  END;
 
 
@@ -994,31 +1096,13 @@ SUPPORTS:
                 IF @ProcedureType = N'Create'
                     BEGIN
                         /**********************************************************************************************************************
-                        ** Find the IDENTITY column 
-                        **********************************************************************************************************************/
-                        SELECT  TOP (1)
-                                @IdentityColumnNameString = QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                           ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                       END
-                        FROM
-                                #ColumnList AS CL
-                        WHERE
-                                CL.Depth      = 0
-                        AND CL.IsIdentityFlag = 1
-                        ORDER BY
-                                CL.ColumnListId ASC;
-
-
-                        /**********************************************************************************************************************
                         ** Build the parameter list
                         **********************************************************************************************************************/
                         SELECT
-                            @ParameterString = @ParameterString + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                    END
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                               END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1032,19 +1116,18 @@ SUPPORTS:
                         /* Fix the first item */
                         IF LEN(@ParameterString) > 0
                             BEGIN
-                                SET @ParameterString = CAST(N'     ' AS nvarchar(MAX)) + RIGHT(@ParameterString, LEN(@ParameterString) - 7);
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
                             END;
 
 
                         /**********************************************************************************************************************
-                        ** Build the INSERT INTO clause
+                        ** Build the INSERT INTO clause 
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoString = @InsertIntoString + N'
-            ,'                                  + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                      THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                 ELSE CAST(N'' AS nvarchar(MAX))
-                                                                             END
+                            @InsertIntoString = @InsertIntoString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                        END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1058,8 +1141,7 @@ SUPPORTS:
                         /* Fix the first item */
                         IF LEN(@InsertIntoString) > 0
                             BEGIN
-                                SET @InsertIntoString = CAST(N'
-             '                  AS nvarchar(MAX))       + RIGHT(@InsertIntoString, LEN(@InsertIntoString) - 15);
+                                SET @InsertIntoString = RIGHT(@InsertIntoString, LEN(@InsertIntoString) - 20);
                             END;
 
 
@@ -1067,11 +1149,10 @@ SUPPORTS:
                         ** Build the INSERT INTO VALUES clause
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoValuesString = @InsertIntoValuesString + N'
-            ,@'                                       + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
-                                                                               END
+                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                 END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1085,23 +1166,8 @@ SUPPORTS:
                         /* Fix the first item */
                         IF LEN(@InsertIntoValuesString) > 0
                             BEGIN
-                                SET @InsertIntoValuesString = CAST(N'
-             '                  AS nvarchar(MAX))             + RIGHT(@InsertIntoValuesString, LEN(@InsertIntoValuesString) - 15);
+                                SET @InsertIntoValuesString = RIGHT(@InsertIntoValuesString, LEN(@InsertIntoValuesString) - 20);
                             END;
-
-
-                        /**********************************************************************************************************************
-                        ** Determine if the table has triggers
-                        --todo: remove @HasTriggersFlag check and insert the output into a temp table
-                        **********************************************************************************************************************/
-                        SELECT  TOP (1)
-                                @HasTriggersFlag = TL.HasTriggersFlag
-                        FROM
-                                #TableList AS TL
-                        WHERE
-                                TL.Depth = 0
-                        ORDER BY
-                                TL.TableListId ASC;
 
 
                         /**********************************************************************************************************************
@@ -1121,30 +1187,38 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @ExecuteCreateString = @ExecuteCreateString + N' (
-'                                                          + @ParameterString + N'
+     '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
 )'                              ;
                             END;
 
                         SET @ExecuteCreateString = @ExecuteCreateString + N'
 AS
     BEGIN
-
         SET NOCOUNT, XACT_ABORT ON;
 
-        INSERT INTO '                              + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (' AS nvarchar(MAX)) + @InsertIntoString + N'
-        )'              ;
+        /* Create temporary table to store the output */
+        CREATE TABLE #Output (
+             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+        );
 
-                        IF LEN(@IdentityColumnNameString) > 0
-                        AND @HasTriggersFlag = 0
-                            BEGIN
-                                SET @ExecuteCreateString = @ExecuteCreateString + CAST(N' --todo: remove @HasTriggersFlag check and insert the output into a temp table
-        OUTPUT
-            Inserted.'          AS nvarchar(MAX))          + @IdentityColumnNameString;
-                            END;
-
-                        SET @ExecuteCreateString = @ExecuteCreateString + N'
-        VALUES ('                                  + @InsertIntoValuesString + N'
+        /* Perform the create (insert) */
+        INSERT INTO '                              + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (
+             '          AS nvarchar(MAX))          + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'            ') + N'
         )
+        OUTPUT
+             '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'            ') + N'
+        INTO #Output (
+             '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
+        )
+        VALUES (
+             '                                     + REPLACE(@InsertIntoValuesString, N'/*INDENT SPACES*/', N'            ') + N'
+        )
+
+        /* Select the inserted row from the output temporary table to return */
+        SELECT
+             '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
+        FROM
+            #Output;
 
     END;'               ;
 
@@ -1166,14 +1240,36 @@ AS
                 IF @ProcedureType = N'Read'
                     BEGIN
                         /**********************************************************************************************************************
+                        ** Build the parameter list
+                        **********************************************************************************************************************/
+                        SELECT
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                               END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth            = 0
+                        AND CL.IsPrimaryKeyFlag = 1
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@ParameterString) > 0
+                            BEGIN
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
+                            END;
+
+
+                        /**********************************************************************************************************************
                         ** Build the SELECT clause
                         **********************************************************************************************************************/
                         SELECT
-                            @SelectString = @SelectString + N'
-            ,'                              + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                END
+                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                                                                                                THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                           ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                       END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1184,8 +1280,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@SelectString) > 0
                             BEGIN
-                                SET @SelectString = CAST(N'
-             '                  AS nvarchar(MAX))   + RIGHT(@SelectString, LEN(@SelectString) - 15);
+                                SET @SelectString = RIGHT(@SelectString, LEN(@SelectString) - 20);
                             END;
 
                         /* Find the referenced alias */
@@ -1198,38 +1293,13 @@ AS
 
 
                         /**********************************************************************************************************************
-                        ** Build the parameter list
-                        **********************************************************************************************************************/
-                        SELECT
-                            @ParameterString = @ParameterString + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                    END
-                        FROM
-                            #ColumnList AS CL
-                        WHERE
-                            CL.Depth            = 0
-                        AND CL.IsPrimaryKeyFlag = 1
-                        ORDER BY
-                            CL.ColumnListId ASC;
-
-                        /* Fix the first item */
-                        IF LEN(@ParameterString) > 0
-                            BEGIN
-                                SET @ParameterString = CAST(N'     ' AS nvarchar(MAX)) + RIGHT(@ParameterString, LEN(@ParameterString) - 7);
-                            END;
-
-
-                        /**********************************************************************************************************************
                         ** Build the WHERE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @WhereString = @WhereString + CAST(N'
-        AND '               AS nvarchar(MAX)) + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                 END
+                            @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                       THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                  ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                              END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1241,15 +1311,13 @@ AS
                         /* Fix the first item */
                         IF LEN(@WhereString) > 0
                             BEGIN
-                                SET @WhereString = CAST(N'
-            '                   AS nvarchar(MAX))  + RIGHT(@WhereString, LEN(@WhereString) - 14);
+                                SET @WhereString = RIGHT(@WhereString, LEN(@WhereString) - 23);
                             END;
 
                         /* Check for empty WHERE clause */
                         IF LEN(@WhereString) = 0
                             BEGIN
-                                SET @WhereString = N'
-            1 = 0 /* Primary key not found */';
+                                SET @WhereString = N'1 = 0 /* Primary key not found */';
                             END;
 
 
@@ -1270,7 +1338,7 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @ExecuteReadString = @ExecuteReadString + N' (
-'                                                        + @ParameterString;
+     '                                                   + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ');
                                 IF @HasDateTimeOffsetFlag = 1
                                     BEGIN
                                         SET @ExecuteReadString = @ExecuteReadString + N'
@@ -1287,14 +1355,16 @@ AS
 
         SET NOCOUNT, XACT_ABORT ON;
 
-        SELECT'                                  + @SelectString + N'
+        SELECT
+             '                                   + REPLACE(@SelectString, N'/*INDENT SPACES*/', N'		    ') + N'
         FROM
             '                                    + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + CAST(N' AS ' AS nvarchar(MAX)) + @referenced_alias + CASE WHEN LEN(@TableDescription) > 0 THEN N' /* ' + @TableDescription + N' */' ELSE N'' END;
 
                         IF LEN(@WhereString) > 0
                             BEGIN
                                 SET @ExecuteReadString = @ExecuteReadString + N'
-        WHERE'                                           + @WhereString;
+        WHERE
+            '                                            + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'            ');
                             END;
 
                         SET @ExecuteReadString = @ExecuteReadString + N'
@@ -1321,11 +1391,10 @@ AS
                         ** Build the SELECT clause
                         **********************************************************************************************************************/
                         SELECT
-                            @SelectString = @SelectString + N'
-            ,'                              + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                END
+                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                                                                                                THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                           ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                       END
                         FROM
                             #ColumnList AS CL
                         ORDER BY
@@ -1334,8 +1403,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@SelectString) > 0
                             BEGIN
-                                SET @SelectString = CAST(N'
-             '                  AS nvarchar(MAX))   + RIGHT(@SelectString, LEN(@SelectString) - 15);
+                                SET @SelectString = RIGHT(@SelectString, LEN(@SelectString) - 20);
                             END;
 
 
@@ -1343,11 +1411,10 @@ AS
                         ** Build the parameter list
                         **********************************************************************************************************************/
                         SELECT
-                            @ParameterString = @ParameterString + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                    END
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                               END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1359,7 +1426,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@ParameterString) > 0
                             BEGIN
-                                SET @ParameterString = CAST(N'     ' AS nvarchar(MAX)) + RIGHT(@ParameterString, LEN(@ParameterString) - 7);
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
                             END;
 
 
@@ -1367,11 +1434,10 @@ AS
                         ** Build the WHERE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @WhereString = @WhereString + CAST(N'
-        AND '               AS nvarchar(MAX)) + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                 END
+                            @WhereString = @WhereString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                      THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                 ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                             END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1383,15 +1449,13 @@ AS
                         /* Fix the first item */
                         IF LEN(@WhereString) > 0
                             BEGIN
-                                SET @WhereString = CAST(N'
-            '                   AS nvarchar(MAX))  + RIGHT(@WhereString, LEN(@WhereString) - 14);
+                                SET @WhereString = RIGHT(@WhereString, LEN(@WhereString) - 21);
                             END;
 
                         /* Check for empty WHERE clause */
                         IF LEN(@WhereString) = 0
                             BEGIN
-                                SET @WhereString = N'
-            1 = 0 /* Primary key not found */';
+                                SET @WhereString = N'1 = 0 /* Primary key not found */';
                             END;
 
 
@@ -1412,7 +1476,7 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @ExecuteReadEagerString = @ExecuteReadEagerString + N' (
-'                                                             + @ParameterString;
+     '                                                        + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ');
                                 IF @HasDateTimeOffsetFlag = 1
                                     BEGIN
                                         SET @ExecuteReadEagerString = @ExecuteReadEagerString + N'
@@ -1429,14 +1493,16 @@ AS
 
         SET NOCOUNT, XACT_ABORT ON;
 
-        SELECT'                                       + @SelectString + N'
+        SELECT
+             '                                        + REPLACE(@SelectString, N'/*INDENT SPACES*/', N'            ') + N'
         FROM
-            '                                         + REPLACE(REPLACE(REPLACE(@FromString, '/*[JOIN CONDITION]*/', ''), N'/*[ON SPACE]*/', N'                '), N'/*[JOIN SPACE]*/', N'            ');
+            '                                         + REPLACE(REPLACE(REPLACE(@FromString, '/*[JOIN CONDITION]*/', ''), N'/*[ON SPACE]*/', N'                '), N'/*INDENT SPACES*/', N'            ');
 
                         IF LEN(@WhereString) > 0
                             BEGIN
                                 SET @ExecuteReadEagerString = @ExecuteReadEagerString + N'
-        WHERE'                                                + @WhereString;
+        WHERE
+            '                                                 + @WhereString;
                             END;
 
                         SET @ExecuteReadEagerString = @ExecuteReadEagerString + N'
@@ -1464,11 +1530,10 @@ AS
                         ** Build the parameter list
                         **********************************************************************************************************************/
                         SELECT
-                            @ParameterString = @ParameterString + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                    END
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                               END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1481,7 +1546,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@ParameterString) > 0
                             BEGIN
-                                SET @ParameterString = CAST(N'     ' AS nvarchar(MAX)) + RIGHT(@ParameterString, LEN(@ParameterString) - 7);
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
                             END;
 
 
@@ -1489,11 +1554,10 @@ AS
                         ** Build the UPDATE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @UpdateString = @UpdateString + N'
-            ,'                              + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                          END
+                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                 END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1507,32 +1571,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@UpdateString) > 0
                             BEGIN
-                                SET @UpdateString = CAST(N'
-             '                  AS nvarchar(MAX))   + RIGHT(@UpdateString, LEN(@UpdateString) - 15);
-                            END;
-
-
-                        /**********************************************************************************************************************
-                        ** Build the OUPUT clause
-                        **********************************************************************************************************************/
-                        SELECT
-                            @OutputString = @OutputString + N'
-            ,Inserted.'                     + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                  THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                             ELSE CAST(N'' AS nvarchar(MAX))
-                                                                         END
-                        FROM
-                            #ColumnList AS CL
-                        WHERE
-                            CL.Depth = 0
-                        ORDER BY
-                            CL.ColumnListId ASC;
-
-                        /* Fix the first item */
-                        IF LEN(@OutputString) > 0
-                            BEGIN
-                                SET @OutputString = CAST(N'
-             '                  AS nvarchar(MAX))   + RIGHT(@OutputString, LEN(@OutputString) - 15);
+                                SET @UpdateString = RIGHT(@UpdateString, LEN(@UpdateString) - 20);
                             END;
 
 
@@ -1540,11 +1579,10 @@ AS
                         ** Build the WHERE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @WhereString = @WhereString + CAST(N'
-        AND '               AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                            THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                       ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                   END
+                            @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1559,30 +1597,14 @@ AS
                         /* Fix the first item */
                         IF LEN(@WhereString) > 0
                             BEGIN
-                                SET @WhereString = CAST(N'
-            '                   AS nvarchar(MAX))  + RIGHT(@WhereString, LEN(@WhereString) - 14);
+                                SET @WhereString = RIGHT(@WhereString, LEN(@WhereString) - 23);
                             END;
 
                         /* Check for empty WHERE clause */
                         IF LEN(@WhereString) = 0
                             BEGIN
-                                SET @WhereString = N'
-            1 = 0 /* Primary key not found */';
+                                SET @WhereString = N'1 = 0 /* Primary key not found */';
                             END;
-
-
-                        /**********************************************************************************************************************
-                        ** Determine if the table has triggers
-                        --todo: remove @HasTriggersFlag check and insert the output into a temp table
-                        **********************************************************************************************************************/
-                        SELECT  TOP (1)
-                                @HasTriggersFlag = TL.HasTriggersFlag
-                        FROM
-                                #TableList AS TL
-                        WHERE
-                                TL.Depth = 0
-                        ORDER BY
-                                TL.TableListId ASC;
 
 
                         /**********************************************************************************************************************
@@ -1602,36 +1624,47 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @ExecuteUpdateString = @ExecuteUpdateString + N' (
-'                                                          + @ParameterString + N'
+     '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
 )'                              ;
                             END;
 
                         SET @ExecuteUpdateString = @ExecuteUpdateString + N'
 AS
     BEGIN
-
         SET NOCOUNT, XACT_ABORT ON;
 
+        /* Create temporary table to store the output */
+        CREATE TABLE #Output (
+             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+        );
+
+        /* Perform the update */
         UPDATE
             '                                      + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' WITH (UPDLOCK, SERIALIZABLE)' AS nvarchar(MAX)) + N'
-        SET'                                       + @UpdateString;
-                        IF @HasTriggersFlag = 0
-                            BEGIN
-                                SET @ExecuteUpdateString = @ExecuteUpdateString + N'--todo: remove @HasTriggersFlag check and insert the output into a temp table
-        OUTPUT'                                            + @OutputString;
-                            END;
-
-                        SET @ExecuteUpdateString = @ExecuteUpdateString + N'
-        WHERE'                                     + @WhereString + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
-                                                                                    THEN N'
+        SET
+             '                                     + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'            ') + N'
+        OUTPUT
+             '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'            ') + N'
+        INTO #Output (
+             '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
+        )
+        WHERE
+            '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'        ') + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
+                                                                                                                                THEN N'
 
         IF @@ROWCOUNT = 0
             BEGIN
                 RAISERROR(N''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1, 1) WITH NOWAIT;
-                RETURN;
+                RETURN 0;
             END;'
-                                                                               ELSE N''
-                                                                           END + N'
+                                                                                                                           ELSE N''
+                                                                                                                       END + N'
+
+        /* Select the inserted row from the output temporary table to return */
+        SELECT
+             '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
+        FROM
+            #Output;
 
     END;'               ;
 
@@ -1647,7 +1680,7 @@ AS
 
 
                 /**********************************************************************************************************************
-                ** Create Upsert procedure
+                ** Create Upsert (Update/Insert) procedure
                 **********************************************************************************************************************/
                 IF @ProcedureType = N'Upsert'
                     BEGIN
@@ -1655,11 +1688,10 @@ AS
                         ** Build the parameter list
                         **********************************************************************************************************************/
                         SELECT
-                            @ParameterString = @ParameterString + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                    END
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                               END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1674,7 +1706,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@ParameterString) > 0
                             BEGIN
-                                SET @ParameterString = CAST(N'     ' AS nvarchar(MAX)) + RIGHT(@ParameterString, LEN(@ParameterString) - 7);
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
                             END;
 
 
@@ -1682,11 +1714,10 @@ AS
                         ** Build the UPDATE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @UpdateString = @UpdateString + N'
-                    ,'                      + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                          END
+                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                 END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1702,7 +1733,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@UpdateString) > 0
                             BEGIN
-                                SET @UpdateString = CAST(N' ' AS nvarchar(MAX)) + RIGHT(@UpdateString, LEN(@UpdateString) - 23);
+                                SET @UpdateString = RIGHT(@UpdateString, LEN(@UpdateString) - 20);
                             END;
 
                         /**********************************************************************************************************************
@@ -1727,65 +1758,13 @@ AS
 
 
                         /**********************************************************************************************************************
-                        ** Build the temporary table for the output
-                        **********************************************************************************************************************/
-                        SELECT
-                            @TemporaryTableStringColumnType = @TemporaryTableStringColumnType + N', ' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + N' NULL'
-                           ,@TemporaryTableStringType       = @TemporaryTableStringType + N', ' + QUOTENAME(CL.ColumnName)
-                        FROM
-                            #ColumnList AS CL
-                        WHERE
-                            CL.Depth          = 0
-                        AND CL.IsComputedFlag = 0
-                        --AND CL.IsIdentityFlag = 0
-                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        --AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
-                        ORDER BY
-                            CL.ColumnListId ASC;
-
-                        /* Fix the first item */
-                        IF LEN(@TemporaryTableStringColumnType) > 0
-                            BEGIN
-                                SET @TemporaryTableStringColumnType = CAST(N'' AS nvarchar(MAX)) + RIGHT(@TemporaryTableStringColumnType, LEN(@TemporaryTableStringColumnType) - 2);
-                            END;
-
-                        IF LEN(@TemporaryTableStringType) > 0
-                            BEGIN
-                                SET @TemporaryTableStringType = CAST(N'' AS nvarchar(MAX)) + RIGHT(@TemporaryTableStringType, LEN(@TemporaryTableStringType) - 2);
-                            END;
-
-
-                        /**********************************************************************************************************************
-                        ** Build the OUTPUT clause
-                        **********************************************************************************************************************/
-                        SELECT
-                            @OutputString = @OutputString + N'
-                    ,Inserted.'             + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                  THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                             ELSE CAST(N'' AS nvarchar(MAX))
-                                                                         END
-                        FROM
-                            #ColumnList AS CL
-                        WHERE
-                            CL.Depth = 0
-                        ORDER BY
-                            CL.ColumnListId ASC;
-
-                        /* Fix the first item */
-                        IF LEN(@OutputString) > 0
-                            BEGIN
-                                SET @OutputString = CAST(N' ' AS nvarchar(MAX)) + RIGHT(@OutputString, LEN(@OutputString) - 23);
-                            END;
-
-                        /**********************************************************************************************************************
                         ** Build the INSERT INTO clause
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoString = @InsertIntoString + N'
-                            ,'                  + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                      THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                 ELSE CAST(N'' AS nvarchar(MAX))
-                                                                             END
+                            @InsertIntoString = @InsertIntoString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                        END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1800,8 +1779,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@InsertIntoString) > 0
                             BEGIN
-                                SET @InsertIntoString = CAST(N'
-                             '  AS nvarchar(MAX))       + RIGHT(@InsertIntoString, LEN(@InsertIntoString) - 31);
+                                SET @InsertIntoString = RIGHT(@InsertIntoString, LEN(@InsertIntoString) - 20);
                             END;
 
 
@@ -1809,11 +1787,10 @@ AS
                         ** Build the INSERT INTO VALUES clause
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoValuesString = @InsertIntoValuesString + N'
-                            ,@'                       + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
-                                                                               END
+                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                 END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1828,7 +1805,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@InsertIntoValuesString) > 0
                             BEGIN
-                                SET @InsertIntoValuesString = CAST(N' ' AS nvarchar(MAX)) + RIGHT(@InsertIntoValuesString, LEN(@InsertIntoValuesString) - 31);
+                                SET @InsertIntoValuesString = RIGHT(@InsertIntoValuesString, LEN(@InsertIntoValuesString) - 20);
                             END;
 
 
@@ -1836,11 +1813,10 @@ AS
                         ** Build the WHERE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @WhereString = @WhereString + CAST(N'
-                AND '       AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                            THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                       ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                   END
+                            @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1855,32 +1831,15 @@ AS
                         /* Fix the first item */
                         IF LEN(@WhereString) > 0
                             BEGIN
-                                SET @WhereString = CAST(N'' AS nvarchar(MAX)) + RIGHT(@WhereString, LEN(@WhereString) - 22);
+                                SET @WhereString = RIGHT(@WhereString, LEN(@WhereString) - 23);
                             END;
 
                         /* Check for empty WHERE clause */
                         IF LEN(@WhereString) = 0
                             BEGIN
-                                SET @WhereString = N'
-                    1 = 0 /* Primary key not found */';
+                                SET @WhereString = N'1 = 0 /* Primary key not found */';
                             END;
 
-
-                        --/**********************************************************************************************************************
-                        --** Determine if the table has triggers
-                        ----todo: remove @HasTriggersFlag check and insert the output into a temp table
-                        --**********************************************************************************************************************/
-                        --                  SELECT  TOP (1)
-                        --                          @HasTriggersFlag = TL.HasTriggersFlag
-                        --                  FROM
-                        --                          #TableList AS TL
-                        --                  WHERE
-                        --                          TL.Depth = 0
-                        --                  ORDER BY
-                        --                          TL.TableListId ASC;
-
-                        --                  --todo: remove hardcode and check if not needed with new insert into #Output table
-                        --                  SET @HasTriggersFlag = 0;
 
                         /**********************************************************************************************************************
                         ** Build the stored procedure
@@ -1899,7 +1858,7 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @ExecuteUpsertString = @ExecuteUpsertString + N' (
-'                                                          + @ParameterString + N'
+     '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
 )'                              ;
                             END;
 
@@ -1908,38 +1867,47 @@ AS
     BEGIN
 
         SET NOCOUNT, XACT_ABORT ON;
+        
+        BEGIN TRANSACTION;
 '                       ;
                         IF @HasRowVersionStampFlag = 1
                             BEGIN
                                 SET @ExecuteUpsertString = @ExecuteUpsertString + N'
         /* Create temporary table to store the output */
-        CREATE TABLE #Output('                             + @TemporaryTableStringColumnType + N');
+        CREATE TABLE #Output (
+             '                                             + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+        );
 
         IF @RowVersionStamp IS NULL
             BEGIN
                 UPDATE
                     '                                      + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' WITH (UPDLOCK, SERIALIZABLE)' AS nvarchar(MAX)) + N'
                 SET
-                    '                                      + @UpdateString + N'
+                     '                                     + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                    ') + N'
                 OUTPUT
-                    '                                      + @OutputString + N'
-                INTO
-                    #Output('                              + @TemporaryTableStringType + N')
+                     '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                INTO #Output (
+                     '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
                 WHERE
-                    '                                      + @WhereString + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
-                                                                                            THEN N'
+                    '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'                ') + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
+                                                                                                                                                THEN N'
 
                 IF @@ROWCOUNT = 0
                     BEGIN
                         RAISERROR(N''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1, 1) WITH NOWAIT;
-                        RETURN;
+                        RETURN 0;
                     END
                 ELSE
                     BEGIN
-                        SELECT ' + @TemporaryTableStringType + N' FROM #Output;
+                        /* Select the inserted row from the output temporary table to return */
+                        SELECT
+                             ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                            ') + N'
+                        FROM
+                            #Output;
                     END;'
-                                                                                       ELSE N''
-                                                                                   END + N'
+                                                                                                                                           ELSE N''
+                                                                                                                                       END + N'
             END;
         ELSE
             BEGIN'              ;
@@ -1949,30 +1917,45 @@ AS
                 UPDATE
                     ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' WITH (UPDLOCK, SERIALIZABLE)' AS nvarchar(MAX)) + N'
                 SET
-                    ' + @UpdateString + N'
+                     ' + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                    ') + N'
                 OUTPUT
-                    ' + @OutputString + N'
-                INTO
-                    #Output(' + @TemporaryTableStringType + N')
+                     ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                INTO #Output (
+                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
                 WHERE
-                    ' + REPLACE(@WhereString, '
-                AND [RowVersionStamp] = @RowVersionStamp', '') + N';
+                    ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [RowVersionStamp] = @RowVersionStamp', N''), N'/*INDENT SPACES*/', N'                ') + N';
 
                 IF @@ROWCOUNT = 0
                     BEGIN
-                        INSERT INTO ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (' AS nvarchar(MAX)) + @InsertIntoString + N'
+                        INSERT INTO ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (
+                             ' AS nvarchar(MAX)) + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                            ') + N'
                         )
                         OUTPUT
-                            ' + REPLACE(@OutputString, N'                    ', N'                            ') + N'
-                        INTO
-                            #Output(' + @TemporaryTableStringType + N')
+                             ' + REPLACE(@OutputString
+                                        ,N'/*INDENT SPACES*/'
+                                        ,CASE WHEN @HasRowVersionStampFlag = 1
+                                                  THEN N'                            '
+                                             ELSE N'                            '
+                                         END
+                                 )                                                + N'
+                        INTO #Output (
+                             ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                            ') + N'
+                        )
                         VALUES (
-                            ' + @InsertIntoValuesString + N'
+                             ' + REPLACE(@InsertIntoValuesString, N'/*INDENT SPACES*/', N'                            ') + N'
                         );
 
                     END;
 
-                SELECT ' + @TemporaryTableStringType + N' FROM #Output;', N'                ', IIF(@HasRowVersionStampFlag = 1, N'                ', N'        '));
+                /* Select the inserted row from the output temporary table to return */
+                SELECT
+                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                FROM
+                    #Output;'
+                                                                                 ,N'                '
+                                                                                 ,CASE WHEN @HasRowVersionStampFlag = 0 THEN N'        ' ELSE N'                ' END
+                                                                          );
 
                         IF @HasRowVersionStampFlag = 1
                             BEGIN
@@ -1982,6 +1965,9 @@ AS
                             END;
 
                         SET @ExecuteUpsertString = @ExecuteUpsertString + N'
+    
+        COMMIT TRANSACTION;
+
     END;'               ;
 
 
@@ -1996,6 +1982,307 @@ AS
 
 
                 /**********************************************************************************************************************
+                ** Create Indate (Insert/Update) procedure
+                **********************************************************************************************************************/
+                IF @ProcedureType = N'Indate'
+                    BEGIN
+                        /**********************************************************************************************************************
+                        ** Build the parameter list
+                        **********************************************************************************************************************/
+                        SELECT
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                               END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth          = 0
+                        AND CL.IsComputedFlag = 0
+                        AND CL.IsIdentityFlag = 0
+                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
+                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@ParameterString) > 0
+                            BEGIN
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
+                            END;
+
+
+                        /**********************************************************************************************************************
+                        ** Build the UPDATE clause
+                        **********************************************************************************************************************/
+                        SELECT
+                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                 END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth          = 0
+                        AND CL.IsIdentityFlag = 0
+                        AND CL.IsComputedFlag = 0
+                        AND CL.IsIdentityFlag = 0
+                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
+                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@UpdateString) > 0
+                            BEGIN
+                                SET @UpdateString = RIGHT(@UpdateString, LEN(@UpdateString) - 20);
+                            END;
+
+                        /**********************************************************************************************************************
+                        ** Check for RowVersionStamp to include or exclude optimistic concurrency
+                        **********************************************************************************************************************/
+                        IF EXISTS (
+                            SELECT
+                                *
+                            FROM
+                                #ColumnList AS CL
+                            WHERE
+                                CL.ColumnName = 'RowVersionStamp'
+                            AND CL.Depth      = 0
+                        )
+                            BEGIN
+                                SET @HasRowVersionStampFlag = 1;
+                            END;
+                        ELSE
+                            BEGIN
+                                SET @HasRowVersionStampFlag = 0;
+                            END;
+
+
+                        /**********************************************************************************************************************
+                        ** Build the INSERT INTO clause
+                        **********************************************************************************************************************/
+                        SELECT
+                            @InsertIntoString = @InsertIntoString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                        END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth          = 0
+                        AND CL.IsIdentityFlag = 0
+                        AND CL.IsComputedFlag = 0
+                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
+                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@InsertIntoString) > 0
+                            BEGIN
+                                SET @InsertIntoString = RIGHT(@InsertIntoString, LEN(@InsertIntoString) - 20);
+                            END;
+
+
+                        /**********************************************************************************************************************
+                        ** Build the INSERT INTO VALUES clause
+                        **********************************************************************************************************************/
+                        SELECT
+                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                 END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth          = 0
+                        AND CL.IsIdentityFlag = 0
+                        AND CL.IsComputedFlag = 0
+                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
+                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@InsertIntoValuesString) > 0
+                            BEGIN
+                                SET @InsertIntoValuesString = RIGHT(@InsertIntoValuesString, LEN(@InsertIntoValuesString) - 20);
+                            END;
+
+
+                        /**********************************************************************************************************************
+                        ** Build the WHERE clause
+                        **********************************************************************************************************************/
+                        SELECT
+                            @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth            = 0
+                        AND CL.IsPrimaryKeyFlag = 0
+                        AND CL.IsComputedFlag   = 0
+                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
+                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@WhereString) > 0
+                            BEGIN
+                                SET @WhereString = RIGHT(@WhereString, LEN(@WhereString) - 23);
+                            END;
+
+                        /* Check for empty WHERE clause */
+                        IF LEN(@WhereString) = 0
+                            BEGIN
+                                SET @WhereString = N'1 = 0 /* Primary key not found */';
+                            END;
+
+
+                        /**********************************************************************************************************************
+                        ** Build the stored procedure                        
+                        **********************************************************************************************************************/
+                        SET @ExecuteIndateString = N'
+' +                     @AutoGeneratedCommentString + N'
+/**********************************************************************************************************************
+** Author:      ' +     @UserNameString + N'
+** More Info:   http://kevinmartin.tech/sp_CRUDGen
+** Create Time: ' +     @CreateTimeString + N'
+** Description: Used to update a single record. ' + @TableDescription + N'
+**********************************************************************************************************************/
+' +                     @MITLicenseCommentString + N'
+CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
+
+                        IF LEN(@ParameterString) > 0
+                            BEGIN
+                                SET @ExecuteIndateString = @ExecuteIndateString + N' (
+     '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
+)'                              ;
+                            END;
+
+                        SET @ExecuteIndateString = @ExecuteIndateString + N'
+AS
+    BEGIN
+
+        SET NOCOUNT, XACT_ABORT ON;
+        
+        BEGIN TRANSACTION;
+'                       ;
+                        IF @HasRowVersionStampFlag = 1
+                            BEGIN
+                                SET @ExecuteIndateString = @ExecuteIndateString + N'
+        /* Create temporary table to store the output */
+        CREATE TABLE #Output (
+             '                                             + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+        );
+
+        IF @RowVersionStamp IS NULL
+            BEGIN
+                UPDATE
+                    '                                      + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' WITH (UPDLOCK, SERIALIZABLE)' AS nvarchar(MAX)) + N'
+                SET
+                     '                                     + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                    ') + N'
+                OUTPUT
+                     '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                INTO #Output (
+                     '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
+                WHERE
+                    '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'                ') + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
+                                                                                                                                                THEN N'
+
+                IF @@ROWCOUNT = 0
+                    BEGIN
+                        RAISERROR(N''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1, 1) WITH NOWAIT;
+                        RETURN 0;
+                    END
+                ELSE
+                    BEGIN
+                        /* Select the inserted row from the output temporary table to return */
+                        SELECT
+                             ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                            ') + N'
+                        FROM
+                            #Output;
+                    END;'
+                                                                                                                                           ELSE N''
+                                                                                                                                       END + N'
+            END;
+        ELSE
+            BEGIN'              ;
+                            END;
+
+                        SET @ExecuteIndateString = @ExecuteIndateString + REPLACE(N'
+                INSERT INTO ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (
+                     ' AS nvarchar(MAX)) + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
+                OUTPUT
+                     ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                INTO #Output (
+                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
+                SELECT
+                     ' + REPLACE(@InsertIntoValuesString, N'/*INDENT SPACES*/', N'                    ') + N'
+                WHERE
+                    NOT EXISTS (
+                    SELECT
+                        *
+                    FROM
+                        ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N'
+                    WHERE
+                        ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [RowVersionStamp] = @RowVersionStamp', N''), N'/*INDENT SPACES*/', N'                    ') + N'
+                );
+
+                IF @@ROWCOUNT = 0
+                    BEGIN
+                        UPDATE
+                            ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' WITH (UPDLOCK, SERIALIZABLE)' AS nvarchar(MAX)) + N'
+                        SET
+                             ' + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                            ') + N'
+                        OUTPUT
+                             ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                            ') + N'
+                        INTO #Output (
+                             ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                            ') + N'
+                        )
+                        WHERE
+                            ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [RowVersionStamp] = @RowVersionStamp', N''), N'/*INDENT SPACES*/', N'                        ') + N';
+
+                    END;
+
+                /* Select the inserted row from the output temporary table to return */
+                SELECT
+                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                FROM
+                    #Output;', N'                ', CASE WHEN @HasRowVersionStampFlag = 0 THEN N'        ' ELSE N'                ' END);
+
+                        IF @HasRowVersionStampFlag = 1
+                            BEGIN
+                                SET @ExecuteIndateString = @ExecuteIndateString + N'
+            END;'               ;
+
+                            END;
+
+                        SET @ExecuteIndateString = @ExecuteIndateString + N'
+    
+        COMMIT TRANSACTION;
+
+    END;'               ;
+
+
+                        /**********************************************************************************************************************
+                        ** Create the store procedure
+                        **********************************************************************************************************************/
+                        IF @GenerateStoredProcedures = 1
+                            BEGIN
+                                EXEC sys.sp_executesql @stmt = @ExecuteIndateString;
+                            END;
+                    END;
+
+
+                /**********************************************************************************************************************
                 ** Create Delete stored procedure
                 **********************************************************************************************************************/
                 IF @ProcedureType = N'Delete'
@@ -2004,11 +2291,10 @@ AS
                         ** Build the parameter list
                         **********************************************************************************************************************/
                         SELECT
-                            @ParameterString = @ParameterString + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                    END
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                               END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2026,7 +2312,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@ParameterString) > 0
                             BEGIN
-                                SET @ParameterString = CAST(N'     ' AS nvarchar(MAX)) + RIGHT(@ParameterString, LEN(@ParameterString) - 7);
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
                             END;
 
 
@@ -2034,11 +2320,10 @@ AS
                         ** Build the WHERE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @WhereString = @WhereString + CAST(N'
-        AND '               AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                            THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                       ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                   END
+                            @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2053,15 +2338,13 @@ AS
                         /* Fix the first item */
                         IF LEN(@WhereString) > 0
                             BEGIN
-                                SET @WhereString = CAST(N'
-            '                   AS nvarchar(MAX))  + RIGHT(@WhereString, LEN(@WhereString) - 14);
+                                SET @WhereString = RIGHT(@WhereString, LEN(@WhereString) - 23);
                             END;
 
                         /* Check for empty WHERE clause */
                         IF LEN(@WhereString) = 0
                             BEGIN
-                                SET @WhereString = N'
-            1 = 0 /* Primary key not found */';
+                                SET @WhereString = N'1 = 0 /* Primary key not found */';
                             END;
 
 
@@ -2082,7 +2365,7 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @StringToExecuteDelete = @StringToExecuteDelete + N' (
-'                                                            + @ParameterString + N'
+     '                                                       + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
 )'                              ;
                             END;
 
@@ -2098,7 +2381,8 @@ AS
                         IF LEN(@WhereString) > 0
                             BEGIN
                                 SET @StringToExecuteDelete = @StringToExecuteDelete + N'
-        WHERE'                                               + @WhereString + N';';
+        WHERE
+            '                                                + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'        ') + N';';
                             END;
 
                         SET @StringToExecuteDelete = @StringToExecuteDelete + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
@@ -2107,13 +2391,12 @@ AS
         IF @@ROWCOUNT = 0
             BEGIN
                 RAISERROR(N''The record you attempted to delete was modified by another user after you received the original values! The delete operation was canceled. If you still want to delete this record, click the Delete button again.'', 1, 1) WITH NOWAIT;
-                RETURN;
+                RETURN 0;
             END;'
                                                                                   ELSE N''
                                                                               END;
 
                         SET @StringToExecuteDelete = @StringToExecuteDelete + N'
-
     END;'               ;
 
 
@@ -2180,12 +2463,10 @@ AS
                         ** Build the parameter list
                         **********************************************************************************************************************/
                         SELECT
-                            @ParameterString = @ParameterString + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N'Value nvarchar(MAX) = NULL' AS nvarchar(MAX)) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                               END + N'
-    ,@'                                        + CL.ColumnNameCleaned + CAST(N'Operator nvarchar(30) = N''Equals''' AS varchar(MAX))
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N'Value nvarchar(MAX) = NULL' AS nvarchar(MAX)) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                          END + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N'Operator nvarchar(30) = N''Equals''' AS varchar(MAX))
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2197,7 +2478,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@ParameterString) > 0
                             BEGIN
-                                SET @ParameterString = CAST(N'     ' AS nvarchar(MAX)) + RIGHT(@ParameterString, LEN(@ParameterString) - 7);
+                                SET @ParameterString = RIGHT(@ParameterString, LEN(@ParameterString) - 20);
                             END;
 
 
@@ -2205,11 +2486,10 @@ AS
                         ** Build the SELECT clause
                         **********************************************************************************************************************/
                         SELECT
-                            @SelectString = @SelectString + N'
-    ,'                                      + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                END
+                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                                                                                                THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                           ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                       END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2220,8 +2500,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@SelectString) > 0
                             BEGIN
-                                SET @SelectString = CAST(N'
-     '                          AS nvarchar(MAX))   + RIGHT(@SelectString, LEN(@SelectString) - 7);
+                                SET @SelectString = RIGHT(@SelectString, LEN(@SelectString) - 20);
                             END;
 
 
@@ -2229,29 +2508,27 @@ AS
                         ** Build the BETWEEN parameter variables for splitting parameters into begin and end variables for BETWEEN operations
                         **********************************************************************************************************************/
                         SELECT
-                            @BetweenString = @BetweenString + N'
-            ,@'                              + CL.ColumnNameCleaned + CAST(N'Begin ' AS nvarchar(MAX)) + CASE WHEN CL.TypeName = 'uniqueidentifier'
-                                                                                                                  THEN 'nvarchar(MAX)'
-                                                                                                             ELSE CASE WHEN CL.TypeName IN ('time', 'date', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                                           THEN 'nvarchar(MAX)'
-                                                                                                                      ELSE CL.TypeName + CL.TypeLength
-                                                                                                                  END
-                                                                                                         END + N'
-            ,@'                              + CL.ColumnNameCleaned + CAST(N'End ' AS nvarchar(MAX)) + CASE WHEN CL.TypeName = 'uniqueidentifier'
-                                                                                                                THEN 'nvarchar(MAX)'
-                                                                                                           ELSE CASE WHEN CL.TypeName IN ('time', 'date', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                                         THEN 'nvarchar(MAX)'
-                                                                                                                    ELSE CL.TypeName + CL.TypeLength
-                                                                                                                END
-                                                                                                       END + CASE WHEN CL.TypeName IN ('date', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                                      THEN N'
-            ,@' +           CL.ColumnNameCleaned + N'EndDataType nvarchar(MAX)'
-                                                                                                                 ELSE N''
-                                                                                                             END + CASE WHEN CL.TypeName IN ('time')
-                                                                                                                            THEN N'
-            ,@' +           CL.ColumnNameCleaned + N'EndPrecision nvarchar(MAX)'
-                                                                                                                       ELSE N''
-                                                                                                                   END
+                            @BetweenVariableString = @BetweenVariableString + @NewLineString + N'/*INDENT SPACES*/DECLARE @' + CL.ColumnNameCleaned + CAST(N'Begin ' AS nvarchar(MAX)) + /**/
+                            CASE WHEN CL.TypeName = 'uniqueidentifier'
+                                     THEN 'nvarchar(MAX);'
+                                ELSE CASE WHEN CL.TypeName IN ('time', 'date', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                              THEN 'nvarchar(MAX);'
+                                         ELSE CL.TypeName + CL.TypeLength + N';'
+                                     END
+                            END                      + @NewLineString + N'/*INDENT SPACES*/DECLARE @' + CL.ColumnNameCleaned + CAST(N'End ' AS nvarchar(MAX)) + /**/
+                            CASE WHEN CL.TypeName = 'uniqueidentifier'
+                                     THEN 'nvarchar(MAX);'
+                                ELSE CASE WHEN CL.TypeName IN ('time', 'date', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                              THEN 'nvarchar(MAX);'
+                                         ELSE CL.TypeName + CL.TypeLength + N';'
+                                     END
+                            END                      + CASE WHEN CL.TypeName IN ('date', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                THEN @NewLineString + N'/*INDENT SPACES*/DECLARE @' + CL.ColumnNameCleaned + N'EndDataType nvarchar(MAX);'
+                                                           ELSE N''
+                                                       END + CASE WHEN CL.TypeName IN ('time')
+                                                                      THEN @NewLineString + N'/*INDENT SPACES*/DECLARE @' + CL.ColumnNameCleaned + N'EndPrecision nvarchar(MAX);'
+                                                                 ELSE N''
+                                                             END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2261,9 +2538,9 @@ AS
                             CL.ColumnListId ASC;
 
                         /* Fix the first item */
-                        IF LEN(@BetweenString) > 0
+                        IF LEN(@BetweenVariableString) > 0
                             BEGIN
-                                SET @BetweenString = CAST(N' ' AS nvarchar(MAX)) + RIGHT(@BetweenString, LEN(@BetweenString) - 15);
+                                SET @BetweenVariableString = RIGHT(@BetweenVariableString, LEN(@BetweenVariableString) - 19);
                             END;
 
 
@@ -2271,8 +2548,7 @@ AS
                         ** Build the temporary tables for passing in lists
                         **********************************************************************************************************************/
                         SELECT
-                            @TempTableListString = @TempTableListString + N'
-        CREATE TABLE #'                            + CL.ColumnNameCleaned + CAST(N'Value (' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + N' ' + CASE WHEN CL.TypeName = 'uniqueidentifier' THEN 'nvarchar(MAX)' ELSE CL.TypeName + CL.TypeLength END + N' NULL);'
+                            @TempTableListString = @TempTableListString + @NewLineString + N'/*INDENT SPACES*/CREATE TABLE #' + CL.ColumnNameCleaned + CAST(N'Value (' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + N' ' + CASE WHEN CL.TypeName = 'uniqueidentifier' THEN 'nvarchar(MAX)' ELSE CL.TypeName + CL.TypeLength END + N' NULL);'
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2284,7 +2560,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@TempTableListString) > 0
                             BEGIN
-                                SET @TempTableListString = CAST(N'' AS nvarchar(MAX)) + RIGHT(@TempTableListString, LEN(@TempTableListString) - 10);
+                                SET @TempTableListString = RIGHT(@TempTableListString, LEN(@TempTableListString) - 19);
                             END;
 
 
@@ -2304,7 +2580,7 @@ AS
                         /* Fix the first item */
                         IF LEN(@OrderColumnString) > 0
                             BEGIN
-                                SET @OrderColumnString = CAST(N'' AS nvarchar(MAX)) + RIGHT(@OrderColumnString, LEN(@OrderColumnString) - 2);
+                                SET @OrderColumnString = RIGHT(@OrderColumnString, LEN(@OrderColumnString) - 2);
                             END;
 
 
@@ -2778,15 +3054,13 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @ExecuteSearchString = @ExecuteSearchString + N' (
-'                                                          + @ParameterString;
-                                SET @ExecuteSearchString = @ExecuteSearchString + N'
+     '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
     ,@AtTimeZoneName nvarchar(MAX) = N''Central Standard Time'' /* SELECT name FROM sys.time_zone_info */
     ,@PageNumber int = 1
     ,@PageSize int = 100
     ,@OrderColumnAlias nvarchar(MAX) = N'''                + @IdentityColumnTableAliasString + N'''
     ,@OrderColumn nvarchar(MAX) = N'''                     + @IdentityColumnNameString + N'''
-    ,@OrderDirection char(3) = ''ASC''
-    
+    ,@OrderDirection char(3) = ''ASC''    
     ,@Debug bit = 0
 )'                              ;
                             END;
@@ -2806,11 +3080,10 @@ AS
         SET @SeparatorStartingPosition = 0;
 
         /* Parameter Variables - This is for splitting parameters into begin and end variables for BETWEEN operations */
-        DECLARE
-            '                                      + @BetweenString + N';
+        '                                          + REPLACE(@BetweenVariableString, N'/*INDENT SPACES*/', N'        ') + N'
 
         /* Create Temp Tables - This is for inserting JSON into for passing a list of parameter values */
-        '                                          + @TempTableListString + N';
+        '                                          + REPLACE(@TempTableListString, N'/*INDENT SPACES*/', N'        ') + N'
 
         /* Check if OrderColumn parameter is valid for ORDER BY */
         IF @OrderColumn NOT IN (
@@ -2818,7 +3091,7 @@ AS
         )
            BEGIN
                RAISERROR(N''OrderColumn parameter is not a valid table column!'', 1, 0) WITH NOWAIT;
-               RETURN;
+               RETURN 1;
            END;
 
         SET @StringToExecute = N''
@@ -2830,7 +3103,7 @@ WITH Keys
             '                                      + QUOTENAME(@IdentityColumnNameString) + N' = ' + @IdentityColumnTableAliasString + N'.' + QUOTENAME(@IdentityColumnNameString) + N'
             ,RowNumber = ROW_NUMBER() OVER (ORDER BY '' + @OrderColumnAlias + N''.'' + QUOTENAME(@OrderColumn) + CASE WHEN @OrderDirection = N''ASC'' THEN N'' ASC'' ELSE N'' DESC'' END + N'')
         FROM
-            '                                      + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'                '), N'/*[JOIN SPACE]*/', N'            '), N'/*[JOIN CONDITION]*/', N'') + N'
+            '                                      + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'                '), N'/*INDENT SPACES*/', N'            '), N'/*[JOIN CONDITION]*/', N'') + N'
         WHERE
             1 = 1'''                               + @WhereString + N'
 
@@ -2839,11 +3112,12 @@ SET @StringToExecute = @StringToExecute + N''
     AS (
         SELECT RowsTotal = COUNT_BIG(*) FROM Keys AS K
     )
-SELECT'                                            + @SelectString + N'
+SELECT
+     '                                             + REPLACE(@SelectString, N'/*INDENT SPACES*/', N'    ') + N'
     ,RowsTotal = Counts.RowsTotal
 FROM
     Keys
-    INNER JOIN '                                   + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'            '), N'/*[JOIN SPACE]*/', N'        '), N'/*[JOIN CONDITION]*/', N'
+    INNER JOIN '                                   + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'            '), N'/*INDENT SPACES*/', N'        '), N'/*[JOIN CONDITION]*/', N'
         ON Keys.' + QUOTENAME(@IdentityColumnNameString) + N' = ' + @IdentityColumnTableAliasString + N'.' + QUOTENAME(@IdentityColumnNameString) + N'') + N'
     CROSS JOIN Counts
 WHERE
@@ -2901,6 +3175,7 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                     CASE WHEN LEN(@ExecuteReadEagerString) > 0 THEN @ExecuteReadEagerString + @NewLineString + 'GO' + @NewLineString ELSE N'' END + 
                     CASE WHEN LEN(@ExecuteUpdateString) > 0 THEN @ExecuteUpdateString + @NewLineString + 'GO' + @NewLineString ELSE N'' END + 
                     CASE WHEN LEN(@ExecuteUpsertString) > 0 THEN @ExecuteUpsertString + @NewLineString + 'GO' + @NewLineString ELSE N'' END + 
+                    CASE WHEN LEN(@ExecuteIndateString) > 0 THEN @ExecuteIndateString + @NewLineString + 'GO' + @NewLineString ELSE N'' END + 
                     CASE WHEN LEN(@StringToExecuteDelete) > 0 THEN @StringToExecuteDelete + @NewLineString + 'GO' + @NewLineString ELSE N'' END + 
                     CASE WHEN LEN(@ExecuteSearchString) > 0 THEN @ExecuteSearchString + @NewLineString + 'GO' + @NewLineString ELSE N'' END;
                 -- SQL Prompt formatting on
