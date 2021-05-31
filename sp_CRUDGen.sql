@@ -10,12 +10,10 @@ GO
 ** Author:      Kevin Martin
 ** More Info:   http://kevinmartin.tech/sp_CRUDGen
 ** Description: Used to generate the stored procedures listed below for your tables.
-**               * [TABLE-NAME]Create (insert a single row)
-**               * [TABLE-NAME]CreateMultiple? Could use JSON to serialize the object and deserialize the object into a temp table for multiple row
-                     https://www.mlakartechtalk.com/using-t-sql-to-insert-update-delete-millions-of-rows/
+**               * [TABLE-NAME]Create (insert a single or multiple rows)
 **               * [TABLE-NAME]Read (read a single row)
 **               * [TABLE-NAME]ReadEager (read a single row and joined table columns)
-**               * [TABLE-NAME]Update (update a single row)
+**               * [TABLE-NAME]Update (update a single row or multiple rows???) TODO:
 **               * [TABLE-NAME]UpdateMultiple?
                      https://www.mlakartechtalk.com/using-t-sql-to-insert-update-delete-millions-of-rows/
 **               * [TABLE-NAME]Upsert (try to update the row first and fail back to insert)
@@ -108,6 +106,7 @@ SUPPORTS:
         DECLARE @IdentityColumnNameString nvarchar(MAX);
         DECLARE @IdentityColumnTableAliasString nvarchar(MAX);
         DECLARE @TemporaryTableStringColumnType nvarchar(MAX);
+        DECLARE @OPENJSONWithString nvarchar(MAX);
         DECLARE @TemporaryTableStringType nvarchar(MAX);
         DECLARE @UserNameString nvarchar(MAX);
         DECLARE @CreateTimeString nvarchar(MAX);
@@ -400,6 +399,7 @@ SUPPORTS:
                 SET @IdentityColumnNameString = N'';
                 SET @IdentityColumnTableAliasString = N'';
                 SET @TemporaryTableStringColumnType = N'';
+                SET @OPENJSONWithString = N'';
                 SET @TemporaryTableStringType = N'';
                 SET @ExecuteDropString = N'';
                 SET @ExecuteCreateString = N'';
@@ -698,7 +698,7 @@ SUPPORTS:
                         AND EP.minor_id           = 0
                         AND EP.class              = 1
                         AND EP.name               = 'MS_Description'
-                --WHERE /* Exclude multiple column foreign key */
+                --WHERE /* Exclude multiple column foreign key TODO: Delete this if it is not needed */
                 --    N.parent_object_id IS NULL
                 --OR  EXISTS (
                 --    SELECT
@@ -916,6 +916,10 @@ SUPPORTS:
                                                                                                                                                                                                                                                     THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                            END
+                           ,@OPENJSONWithString             = @OPENJSONWithString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                    END
                            ,@TemporaryTableStringType       = @TemporaryTableStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
@@ -925,9 +929,7 @@ SUPPORTS:
                         WHERE
                             CL.Depth          = 0
                         AND CL.IsComputedFlag = 0
-                        --AND CL.IsIdentityFlag = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        --AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -935,6 +937,11 @@ SUPPORTS:
                         IF LEN(@TemporaryTableStringColumnType) > 0
                             BEGIN
                                 SET @TemporaryTableStringColumnType = RIGHT(@TemporaryTableStringColumnType, LEN(@TemporaryTableStringColumnType) - 20);
+                            END;
+
+                        IF LEN(@OPENJSONWithString) > 0
+                            BEGIN
+                                SET @OPENJSONWithString = RIGHT(@OPENJSONWithString, LEN(@OPENJSONWithString) - 20);
                             END;
 
                         IF LEN(@TemporaryTableStringType) > 0
@@ -1104,7 +1111,7 @@ SUPPORTS:
                         ** Build the parameter list
                         **********************************************************************************************************************/
                         SELECT
-                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                            @ParameterString = @ParameterString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + N' = NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                END
@@ -1149,7 +1156,6 @@ SUPPORTS:
                                 SET @InsertIntoString = RIGHT(@InsertIntoString, LEN(@InsertIntoString) - 20);
                             END;
 
-
                         /**********************************************************************************************************************
                         ** Build the INSERT INTO VALUES clause
                         **********************************************************************************************************************/
@@ -1184,7 +1190,27 @@ SUPPORTS:
 ** Author:      ' +     @UserNameString + N'
 ** More Info:   http://kevinmartin.tech/sp_CRUDGen
 ** Create Time: ' +     @CreateTimeString + N'
-** Description: Used to insert a single row. ' + @TableDescription + N'
+** Description: Used to insert a single row or multiple rows. ' + @TableDescription + N'
+**
+** Parameters:  @JSON: You can serialize and pass in a JSON string parameter to insert multiple rows at once. Format 
+**                      your JSON string as an array []. The example below is for a table with two columns named 
+**                      FirstName and LastName. Only a single table insert is supported with this stored procedure.
+**                      https://kevinmartin.tech/go/serialize-json
+**
+**                      JSON Example
+**                      [
+**                          {
+**                          "FirstName": "Nicole",
+**                          "LastName": "Bartlett"
+**                          },
+**                          {
+**                          "FirstName": "Kevin",
+**                          "LastName": "Martin"
+**                          }
+**                      ]
+**
+** Notes:       It is possible to create a stored procedure to accept JSON that includes multiple objects that inserts
+                  into multiple tables.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
@@ -1193,6 +1219,7 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                             BEGIN
                                 SET @ExecuteCreateString = @ExecuteCreateString + N' (
      '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
+    ,@JSON nvarchar(MAX) = NULL
 )'                              ;
                             END;
 
@@ -1206,18 +1233,41 @@ AS
              '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
         );
 
-        /* Perform the create (insert) */
-        INSERT INTO '                              + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (
-             '          AS nvarchar(MAX))          + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'            ') + N'
-        )
-        OUTPUT
-             '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'            ') + N'
-        INTO #Output (
-             '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
-        )
-        VALUES (
-             '                                     + REPLACE(@InsertIntoValuesString, N'/*INDENT SPACES*/', N'            ') + N'
-        )
+        IF ISJSON(@JSON) = 1
+            BEGIN
+                /* Perform the create (insert) */
+                INSERT INTO '                      + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N' (
+                     '                             + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
+                OUTPUT
+                     '                             + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                INTO #Output (
+                     '                             + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
+                SELECT
+                     '                             + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                    ') + N'
+                FROM
+                    OPENJSON(@JSON)
+                        WITH(
+                             '                     + REPLACE(@OPENJSONWithString, N'/*INDENT SPACES*/', N'                            ') + N'
+                        );
+            END;
+        ELSE
+            BEGIN
+                /* Perform the create (insert) */
+                INSERT INTO '                      + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (
+                     '  AS nvarchar(MAX))          + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
+                OUTPUT
+                     '                             + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                INTO #Output (
+                     '                             + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                )
+                VALUES (
+                     '                             + REPLACE(@InsertIntoValuesString, N'/*INDENT SPACES*/', N'                    ') + N'
+                );
+            END;
+
 
         /* Select the inserted row from the output temporary table to return */
         SELECT
@@ -2478,7 +2528,6 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.IsReferencedColumn = 0
-                        --AND CL.Depth              = 0
                         AND CL.TypeName IN ('varchar', 'nvarchar', 'char', 'nchar', 'uniqueidentifier', 'date', 'time', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime', 'tinyint', 'smallint', 'int', 'bigint', 'bit', 'decimal', 'numeric', 'smallmoney', 'money', 'real', 'float')
                         ORDER BY
                             CL.ColumnListId ASC;
@@ -2519,7 +2568,6 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.IsReferencedColumn = 0
-                        --AND CL.Depth              = 0
                         AND CL.TypeName IN ('varchar', 'nvarchar', 'char', 'nchar', 'uniqueidentifier', 'date', 'time', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime', 'tinyint', 'smallint', 'int', 'bigint', 'bit', 'decimal', 'numeric', 'smallmoney', 'money', 'real', 'float')
                         ORDER BY
                             CL.ColumnListId ASC;
@@ -2540,7 +2588,6 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.IsReferencedColumn = 0
-                        --AND CL.Depth              = 0
                         AND CL.TypeName IN ('varchar', 'nvarchar', 'char', 'nchar', 'uniqueidentifier', 'date', 'time', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime', 'tinyint', 'smallint', 'int', 'bigint', 'bit', 'decimal', 'numeric', 'smallmoney', 'money', 'real', 'float')
                         ORDER BY
                             CL.ColumnListId ASC;
@@ -2918,7 +2965,6 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.IsReferencedColumn = 0
-                        --AND CL.Depth              = 0
                         AND CL.TypeName IN ('varchar', 'nvarchar', 'char', 'nchar', 'uniqueidentifier', 'date', 'time', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime', 'tinyint', 'smallint', 'int', 'bigint', 'bit', 'decimal', 'numeric', 'smallmoney', 'money', 'real', 'float');
 
 
@@ -2934,7 +2980,6 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.IsReferencedColumn = 0
-                        --AND CL.Depth              = 0
                         AND CL.TypeName IN ('varchar', 'nvarchar', 'char', 'nchar', 'uniqueidentifier', 'date', 'time', 'datetime2', 'datetimeoffset', 'smalldatetime', 'datetime', 'tinyint', 'smallint', 'int', 'bigint', 'bit', 'decimal', 'numeric', 'smallmoney', 'money', 'real', 'float');
 
 
@@ -3973,21 +4018,17 @@ Copy just the T-SQL below this block comment into a new query window to execute.
         /**********************************************************************************************************************
         ** Output the store procedure execute strings
         **********************************************************************************************************************/
-        --IF @GenerateStoredProcedures = 0
-        IF @GenerateStoredProcedures <> -1
-            BEGIN
-                SELECT
-                    [processing-instruction(output)] = CAST(N'/* Click here to view the generated stored procedures.
+        SELECT
+            [processing-instruction(output)] = CAST(N'/* Click here to view the generated stored procedures.
 If you execute dbo.sp_CRUDGen with @GenerateStoredProcedures = 1 it will create the stored procedures automatically.
 Copy just the T-SQL below this block comment into a new query window to execute. */
 
-'                   AS nvarchar(MAX))                  + @ExecuteOutputString + N'
+'           AS nvarchar(MAX))                  + @ExecuteOutputString + N'
 
 
 /* Copy just the T-SQL above this block comment into a new query window to execute. */
 '
-                FOR XML PATH('');
-            END;
+        FOR XML PATH('');
 
 
     END;
@@ -3998,12 +4039,12 @@ EXEC dbo.sp_CRUDGen /**/
     @GenerateStoredProcedures = 1 /**/
    ,@SchemaTableName = N'person'  /**/
                                   --,@SchemaTableName = NULL         /**/
-   ,@GenerateCreate = 0           /**/
+   ,@GenerateCreate = 1           /**/
    ,@GenerateRead = 0             /**/
    ,@GenerateReadEager = 0        /**/
    ,@GenerateUpdate = 0           /**/
    ,@GenerateUpsert = 0           /**/
-   ,@GenerateIndate = 1           /**/
+   ,@GenerateIndate = 0           /**/
    ,@GenerateDelete = 0           /**/
    ,@GenerateDeleteMultiple = 0   /**/
    ,@GenerateSearch = 0           /**/
