@@ -17,9 +17,10 @@ GO
 **               * [TABLE-NAME]Update (update a single row)
 **               * [TABLE-NAME]UpdateMultiple (update multiple rows)
 **               * [TABLE-NAME]Delete (delete a single row)
-**               * [TABLE-NAME]DeleteMultiple (delete multiple rows with dynamic T-SQL for optional parameters, 
-**                                              kitchen sink, swiss army knife queries)
-**               * [TABLE-NAME]Search (dynamic T-SQL for optional parameters, kitchen sink, swiss army knife queries)
+**               * [TABLE-NAME]DeleteMultiple (delete multiple rows with safe dynamic T-SQL for optional parameters, 
+**                                              kitchen sink, Swiss army knife, catch-all queries)
+**               * [TABLE-NAME]Search (safe dynamic T-SQL for optional parameters, kitchen sink, Swiss army knife, 
+**                                              catch-all queries)
 **               * [TABLE-NAME]Upsert (try to update the row first and fail back to insert)
 **               * [TABLE-NAME]Indate (try to insert the row first and fail back to update)
 **
@@ -34,15 +35,15 @@ GO
 **              Runtime: each table takes around 7 seconds to create the stored procedures. There is some looping in 
 **                        sp_CRUDGen that could be changed to set based operation if anyone would like.
 **
-**              Fork the repo to change the T-SQL style (or format with a tool like Regdate SQL Prompt) and naming 
+**              Fork the repo to change the T-SQL style (or format with a tool like Redgate SQL Prompt) and naming 
 **               conventions. Remember to create a pull request if you added something cool so the rest of the community 
 **               can benefit.
 **
 **              Table names should be PascalCase for best table alias naming.
 **
-**              Use FOREIGN KEY REFERENCES between tables for ReadEager and Search to recurse over related tables
+**              Use FOREIGN KEY REFERENCES between tables for ReadEager and Search to recurse over related tables.
 **
-**              Included table columns you can edit in sp_CRUDGen to customize for you column naming convention.
+**              There are included table columns you can edit in sp_CRUDGen to customize for your column naming convention.
 **                RowUpdatePersonId int - Is the person who last updated the row. FOREIGN KEY REFERENCES to a Person table.
 **                RowUpdateTime datetimeoffset(7) - is the date and time with offset when the row was last updated.
 **                RowCreateTime datetimeoffset(7) - is the date and time with offset when the row was created.
@@ -51,12 +52,10 @@ GO
 **
 **              The Search stored procedure does not work with every column data type.
 **
-**              If you use Extended Properties Description names on tables and columns they will be included as comments 
+**              If you use extended properties description names on tables and columns they will be included as comments 
 **               in the stored procedures.
 **
 **              Do not use SQL Server reserved keywords in object names.
-**
-**              Use the UPSERT stored if an update is more likely and INDATE when a row insert is more likely.
 **
 ** Parameters:  See comments to the right of the parameters below.
 **********************************************************************************************************************/
@@ -139,8 +138,8 @@ AS
         /**********************************************************************************************************************
         ** Set varibles
         **********************************************************************************************************************/
-        SET @Version = '0.12.8';
-        SET @VersionDate = '20210529';
+        SET @Version = '0.12.9';
+        SET @VersionDate = '20210620';
         SET @ScriptVersionName = N'sp_CRUDGen v' + @Version + N' - ' + DATENAME(MONTH, @VersionDate) + N' ' + RIGHT('0' + DATENAME(DAY, @VersionDate), 2) + N', ' + DATENAME(YEAR, @VersionDate);
         SET @ExecuteOutputString = N'';
         SET @UserNameString = CAST(SYSTEM_USER AS nvarchar(MAX));
@@ -3322,8 +3321,8 @@ AS
 /**********************************************************************************************************************
 ** Author:      ' +     @UserNameString + N'
 ** More Info:   http://kevinmartin.tech/sp_CRUDGen
-** Create Time: ' +     @CreateTimeString + N'xxxx
-** Description: Used to execute performant optional parameter search (kitchen sink search) in the ' + @SchemaName + N'.' + @TableName + ' table then delete. ' + @TableDescription + N'
+** Create Time: ' +     @CreateTimeString + N'
+** Description: Used to execute performant optional parameter search (kitchen sink, Swiss army knife, catch-all search) in the ' + @SchemaName + N'.' + @TableName + ' table then delete. ' + @TableDescription + N'
 **               Assess enabling ''Optimize for AdHoc Workloads'' if the adhoc plan cache is 20-30% of the total plan cache.
 **
 ** NOTES:      Sometimes you want to delete all the records in a single transaction. Other times you want to break the 
@@ -3352,10 +3351,11 @@ AS
 **                                      ContainsWithBlanks, DoesNotContain, DoesNotContainWithBlanks)
 **
 **                Ranged Value = "Value 1 to Value 2"
-**                 Allowed Operators: (Between, BetweenWithBlanks, NotBetween, NotBetweenWithBlanks, BetweenWithBlanks)
+**                 Allowed Operators: (Between, BetweenWithBlanks, NotBetween, NotBetweenWithBlanks)
 **
 **                Multivalued JSON = "["Value 1","Value 2","Value 3"]"
 **                 Allowed Operators: (Exists, NotExists)
+**                  https://kevinmartin.tech/go/serialize-json
 **
 **              @[COLUMN-NAME]Operator: Different column data types have different operators that apply.
 **
@@ -3377,7 +3377,7 @@ AS
 **                   NonBlanks, Exists, NotExists
 **
 **              @PageNumber: This is for pagination of the query results. Pass 1 to return the 1st page of results, set 
-**                           the value to 2 for the 2nd page
+**                           the value to 2 for the 2nd page.
 **
 **              @PageSize: This is for pagination of the query results. Pass 100 to return 100 rows for each 
 **                         @PageNumber. You can set this to a high number (2147483647) and keep @PageNumber = 1 to return 
@@ -4113,9 +4113,27 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 ** Author:      ' +     @UserNameString + N'
 ** More Info:   http://kevinmartin.tech/sp_CRUDGen
 ** Create Time: ' +     @CreateTimeString + N'
-** Description: Used to execute performant optional parameter search (kitchen sink search) on the ' + @SchemaName + N'.' + @TableName + ' table. ' + @TableDescription + N'
+** Description: Used to execute performant optional parameter search (kitchen sink, Swiss army knife, catch-all search) on the ' + @SchemaName + N'.' + @TableName + ' table. ' + @TableDescription + N'
+**              SQL Server will create one cached plan for a static catch-all stored procedure no matter what 
+**              parameters are passed in. Dynamic SQL allows for multiple cached plans to be created for each 
+**              combination of parameters passed in. 
+**
+**              Using OPTION (RECOMPILE) is not an "easy button" or "cheat code" solution in every sitution. Each time 
+**              the query is compiled there is a CPU hit. This hint option might not be a big deal with small queries 
+**              but your code might not work at scale. You or the query performance tuner will not be able to view 
+**              metrics tracked in DMVs when using the OPTION (RECOMPILE) hint.
+**
+**              Branching a main stored procedure to sub stored procedures is another way to combat this issue.
 **
 ** Notes:       Assess enabling ''Optimize for AdHoc Workloads'' if the adhoc plan cache is 20-30% of the total plan cache.
+**
+**              This dynamic SQL stored procedure does not prevent parameter sniffing. The best solution is to use 
+**              comment injection to create separate cached execution plans based on the data distribution (big data, 
+**              medium data). If specific parameter value will return a large amount of data, check for the parameter 
+**              value then add a comment like /* CustomerTypeId = 1, it needs a different cached execution plan */. 
+**              You can keep a list of tables and columns that warrant their own custom plan somewhere like a table. 
+**              You can incorporate this list into the dynamic SQL to create the injectable comment so when users pass 
+**              the parameter value you will still get plan reuse and metrics DMV tracking.
 **
 ** Parameters:  @[COLUMN-NAME]Value: There are three ways to pass values for each table column. There are samples below
 **                                   with their supported operators
@@ -4128,10 +4146,11 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **                                      ContainsWithBlanks, DoesNotContain, DoesNotContainWithBlanks)
 **
 **                Ranged Value = "Value 1 to Value 2"
-**                 Allowed Operators: (Between, BetweenWithBlanks, NotBetween, NotBetweenWithBlanks, BetweenWithBlanks)
+**                 Allowed Operators: (Between, BetweenWithBlanks, NotBetween, NotBetweenWithBlanks)
 **
 **                Multivalued JSON = "["Value 1","Value 2","Value 3"]"
 **                 Allowed Operators: (Exists, NotExists)
+**                  https://kevinmartin.tech/go/serialize-json
 **
 **              @[COLUMN-NAME]Operator: Different column data types have different operators that apply.
 **
@@ -4153,7 +4172,7 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **                   NonBlanks, Exists, NotExists
 **
 **              @PageNumber: This is for pagination of the query results. Pass 1 to return the 1st page of results, set 
-**                           the value to 2 for the 2nd page
+**                           the value to 2 for the 2nd page.
 **
 **              @PageSize: This is for pagination of the query results. Pass 100 to return 100 rows for each 
 **                         @PageNumber. You can set this to a high number (2147483647) and keep @PageNumber = 1 to return 
