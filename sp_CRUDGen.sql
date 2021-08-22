@@ -3394,8 +3394,8 @@ AS
 **              @AtTimeZoneName: This is the value of the timezone datetimeoffset table columns should be converted to
 **                               Use "SELECT name FROM sys.time_zone_info" for a list of supported time zone names.
 **
-**              @Debug: If you set this to 0 it will display an XML link in the results you can click on to view the 
-**                       query text. If you set this to 1 it will execute the query.
+**              @Debug: If you set this to 1 it will display an XML link in the results you can click on to view the 
+**                       query text. If you set this to 0 it will execute the query.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
@@ -4189,8 +4189,8 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **              @AtTimeZoneName: This is the value of the timezone datetimeoffset table columns should be converted to
 **                               Use "SELECT name FROM sys.time_zone_info" for a list of supported time zone names.
 **
-**              @Debug: If you set this to 0 it will display an XML link in the results you can click on to view the 
-**                       query text. If you set this to 1 it will execute the query.
+**              @Debug: If you set this to 1 it will display an XML link in the results you can click on to view the 
+**                       query text. If you set this to 0 it will execute the query.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
