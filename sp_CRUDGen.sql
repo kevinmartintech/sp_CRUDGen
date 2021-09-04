@@ -138,8 +138,8 @@ AS
         /**********************************************************************************************************************
         ** Set varibles
         **********************************************************************************************************************/
-        SET @Version = '0.12.9';
-        SET @VersionDate = '20210620';
+        SET @Version = '0.12.10';
+        SET @VersionDate = '20210903';
         SET @ScriptVersionName = N'sp_CRUDGen v' + @Version + N' - ' + DATENAME(MONTH, @VersionDate) + N' ' + RIGHT('0' + DATENAME(DAY, @VersionDate), 2) + N', ' + DATENAME(YEAR, @VersionDate);
         SET @ExecuteOutputString = N'';
         SET @UserNameString = CAST(SYSTEM_USER AS nvarchar(MAX));
@@ -4204,7 +4204,7 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
     ,@PageSize int = 100
     ,@OrderColumnAlias nvarchar(MAX) = N'''                + @IdentityColumnTableAliasString + N'''
     ,@OrderColumn nvarchar(MAX) = N'''                     + @IdentityColumnNameString + N'''
-    ,@OrderDirection char(3) = ''ASC''    
+    ,@OrderDirection char(3) = ''ASC''
     ,@Debug bit = 0
 )'                              ;
                             END;
