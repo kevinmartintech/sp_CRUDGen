@@ -3504,7 +3504,7 @@ WHILE EXISTS (
         IF @Debug = 1
             BEGIN
                 SELECT 
-                    CAST(N''/* Click here to view the generated stored procedures.
+                    CAST(N''/* Click here to view the generated code.
 Copy just the T-SQL below this block comment into a new query window to execute. */
 
 '' AS nvarchar(MAX)) + @StringToExecute + N''
@@ -4129,7 +4129,7 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **
 **              This dynamic SQL stored procedure does not prevent parameter sniffing. The best solution is to use 
 **              comment injection to create separate cached execution plans based on the data distribution (big data, 
-**              medium data). If specific parameter value will return a large amount of data, check for the parameter 
+**              medium data). If a specific parameter value will return a large amount of data, check for the parameter 
 **              value then add a comment like /* CustomerTypeId = 1, it needs a different cached execution plan */. 
 **              You can keep a list of tables and columns that warrant their own custom plan somewhere like a table. 
 **              You can incorporate this list into the dynamic SQL to create the injectable comment so when users pass 
@@ -4273,7 +4273,7 @@ ORDER BY
         IF @Debug = 1
             BEGIN
                 SELECT 
-                    CAST(N''/* Click here to view the generated stored procedures.
+                    CAST(N''/* Click here to view the generated code.
 Copy just the T-SQL below this block comment into a new query window to execute. */
 
 '' AS nvarchar(MAX)) + @StringToExecute + N''
@@ -4346,7 +4346,7 @@ Copy just the T-SQL below this block comment into a new query window to execute.
         ** Output the store procedure execute strings
         **********************************************************************************************************************/
         SELECT
-            [processing-instruction(output)] = CAST(N'/* Click here to view the generated stored procedures.
+            [processing-instruction(output)] = CAST(N'/* Click here to view the generated code.
 If you execute dbo.sp_CRUDGen with @GenerateStoredProcedures = 1 it will create the stored procedures automatically.
 Copy just the T-SQL below this block comment into a new query window to execute. */
 
