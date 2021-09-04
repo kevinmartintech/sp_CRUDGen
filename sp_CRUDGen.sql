@@ -10,19 +10,19 @@ GO
 ** Author:      Kevin Martin
 ** More Info:   http://kevinmartin.tech/sp_CRUDGen
 ** Description: Used to generate the stored procedures listed below for your tables.
-**               * [TABLE-NAME]Create (insert a single)
-**               * [TABLE-NAME]CreateMultiple (insert multiple rows)
-**               * [TABLE-NAME]Read (read a single row)
-**               * [TABLE-NAME]ReadEager (read a single row and relationship joined table columns)
-**               * [TABLE-NAME]Update (update a single row)
-**               * [TABLE-NAME]UpdateMultiple (update multiple rows)
-**               * [TABLE-NAME]Delete (delete a single row)
-**               * [TABLE-NAME]DeleteMultiple (delete multiple rows with safe dynamic T-SQL for optional parameters, 
-**                                              kitchen sink, Swiss army knife, catch-all queries)
-**               * [TABLE-NAME]Search (safe dynamic T-SQL for optional parameters, kitchen sink, Swiss army knife, 
-**                                              catch-all queries)
-**               * [TABLE-NAME]Upsert (try to update the row first and fail back to insert)
-**               * [TABLE-NAME]Indate (try to insert the row first and fail back to update)
+**               * Create (insert a single)
+**               * CreateMultiple (insert multiple rows)
+**               * Read (read a single row)
+**               * ReadEager (read a single row and relationship joined table columns)
+**               * Update (update a single row)
+**               * UpdateMultiple (update multiple rows)
+**               * Delete (delete a single row)
+**               * DeleteMultiple (delete multiple rows with safe dynamic T-SQL for optional parameters, 
+**                                  kitchen sink, Swiss army knife, catch-all queries)
+**               * Search (safe dynamic T-SQL for optional parameters, kitchen sink, Swiss army knife, 
+**                                  catch-all queries)
+**               * Upsert (try to update the row first and fail back to insert)
+**               * Indate (try to insert the row first and fail back to update)
 **
 ** Supports:    Runs on SQL Server 2005, 2008, 2008 R2, 2012, 2014, 2016, 2017, 2019, ?Azure SQL Server
 **
