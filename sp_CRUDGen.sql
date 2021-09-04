@@ -4123,8 +4123,6 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **              but your code might not work at scale. You or the query performance tuner will not be able to view 
 **              metrics tracked in DMVs when using the OPTION (RECOMPILE) hint.
 **
-**              Branching a main stored procedure to sub stored procedures is another way to combat this issue.
-**
 ** Notes:       Assess enabling ''Optimize for AdHoc Workloads'' if the adhoc plan cache is 20-30% of the total plan cache.
 **
 **              This dynamic SQL stored procedure does not prevent parameter sniffing. The best solution is to use 
@@ -4134,6 +4132,8 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **              You can keep a list of tables and columns that warrant their own custom plan somewhere like a table. 
 **              You can incorporate this list into the dynamic SQL to create the injectable comment so when users pass 
 **              the parameter value you will still get plan reuse and metrics DMV tracking.
+**
+**              Branching a main stored procedure to sub stored procedures is another way to combat this issue.
 **
 ** Parameters:  @[COLUMN-NAME]Value: There are three ways to pass values for each table column. There are samples below
 **                                   with their supported operators
