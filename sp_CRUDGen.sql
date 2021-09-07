@@ -723,22 +723,6 @@ AS
                         AND EP.minor_id           = 0
                         AND EP.class              = 1
                         AND EP.name               = 'MS_Description'
-                --WHERE /* Exclude multiple column foreign key TODO: Delete this if it is not needed */
-                --    N.parent_object_id IS NULL
-                --OR  EXISTS (
-                --    SELECT
-                --        E.constraint_object_id
-                --       ,E.parent_object_id
-                --    FROM
-                --        sys.foreign_key_columns AS E
-                --    WHERE
-                --        N.referenced_object_id = E.referenced_object_id
-                --    GROUP BY
-                --        E.constraint_object_id
-                --       ,E.parent_object_id
-                --    HAVING
-                --        COUNT(*) = 1
-                --)
                 ORDER BY
                     N.Depth ASC
                 OPTION (RECOMPILE);
