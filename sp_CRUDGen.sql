@@ -1371,7 +1371,7 @@ AS
 
                 /* Create temporary table to store the JSON rows */
                 CREATE TABLE #JSON (
-                        ' + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'                    ') + N'
                 );
 
                 /* Insert into temporary table to store the JSON rows */
