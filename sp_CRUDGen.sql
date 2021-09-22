@@ -921,7 +921,7 @@ AS
                 IF @ProcedureType IN (N'Create', N'CreateMultiple', N'Update', N'UpdateMultiple', N'Upsert', N'Indate')
                     BEGIN
                         SELECT
-                            @TemporaryTableStringColumnType = @TemporaryTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + N' NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
+                            @TemporaryTableStringColumnType = @TemporaryTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + REPLACE(CL.TypeName, 'rowversion', 'nvarchar(20)') + CL.TypeLength + N' NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                     THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                            END
@@ -1218,7 +1218,7 @@ AS
 
         /* Create temporary table to store the output */
         CREATE TABLE #Output (
-             '                                     + REPLACE(REPLACE(@TemporaryTableStringColumnType, 'rowversion', 'nvarchar(20)'), N'/*INDENT SPACES*/', N'            ') + N'
+             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
         );
 
         /* Perform the create (insert) */
