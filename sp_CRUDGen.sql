@@ -1218,7 +1218,7 @@ AS
 
         /* Create temporary table to store the output */
         CREATE TABLE #Output (
-             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+             '                                     + REPLACE(REPLACE(@TemporaryTableStringColumnType, 'rowversion', 'nvarchar(20)'), N'/*INDENT SPACES*/', N'            ') + N'
         );
 
         /* Perform the create (insert) */
@@ -1226,7 +1226,7 @@ AS
              '  AS nvarchar(MAX))          + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'            ') + N'
         )
         OUTPUT
-             '                             + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'            ') + N'
+             '                             + REPLACE(REPLACE(@OutputString, 'Inserted.[RowVersionStamp]', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[RowVersionStamp]), 1)'), N'/*INDENT SPACES*/', N'            ') + N'
         INTO #Output (
              '                             + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
         )
