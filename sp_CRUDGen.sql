@@ -1941,6 +1941,26 @@ AS
 ** More Info:   http://kevinmartin.tech/sp_CRUDGen
 ** Create Time: ' +     @CreateTimeString + N'
 ** Description: Used to update multiple rows in the ' + @SchemaName + N'.' + @TableName + ' table. ' + @TableDescription + N'
+**
+** Parameters:  @JSON: You can serialize and pass in a JSON string parameter to update multiple rows at once. Format 
+**                      your JSON string as an array []. The example below is for a table with two columns named 
+**                      FirstName and LastName. Only a single table insert is supported with this stored procedure.
+**                      https://kevinmartin.tech/go/serialize-json
+**
+**                      JSON Example
+**                      [
+**                          {
+**                          "FirstName": "Nicole",
+**                          "LastName": "Bartlett"
+**                          },
+**                          {
+**                          "FirstName": "Kevin",
+**                          "LastName": "Martin"
+**                          }
+**                      ]
+**
+** Notes:       It is possible to create a stored procedure to accept JSON that includes multiple objects that updates
+                  multiple tables.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName) + N' (
