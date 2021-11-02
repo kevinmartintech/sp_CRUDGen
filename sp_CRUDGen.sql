@@ -397,7 +397,7 @@ AS
                 ORDER BY
                     SPL.StoreProcedureId
                 OPTION (RECOMPILE);
-
+                
                 /**********************************************************************************************************************
                 ** Reset strings
                 **********************************************************************************************************************/
@@ -900,7 +900,7 @@ AS
                     HAVING
                         COUNT(*) > 1
                 );
-
+                
                 /* Determine if the there is a datetimeoffset so we can create the @AtTimeZoneName parameter */
                 DECLARE @HasDateTimeOffsetFlag bit;
 
@@ -1932,6 +1932,19 @@ AS
                             END;
 
                         /**********************************************************************************************************************
+                        ** Find the table alias
+                        **********************************************************************************************************************/
+                        SELECT TOP (1)
+                            @TableAlias = TL.referenced_alias
+                        FROM
+                            #TableList AS TL
+                        WHERE
+                            TL.referenced_table  = @TableName
+                        AND TL.referenced_schema = @SchemaName
+                        ORDER BY
+                            TL.TableListId ASC;
+
+                        /**********************************************************************************************************************
                         ** Build the stored procedure
                         **********************************************************************************************************************/
                         SET @ExecuteUpdateMultipleString = N'
@@ -2005,7 +2018,7 @@ AS
                      '                             + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 FROM
-                    '                              + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N' AS ' + @last_referenced_alias + N'
+                    '                              + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N' AS ' + @TableAlias + N'
                     INNER JOIN #JSON AS J
                         ON '                       + REPLACE(@JoinString, N'/*INDENT SPACES*/', N'                           ') + N';
             END
