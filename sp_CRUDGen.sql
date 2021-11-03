@@ -69,7 +69,7 @@ ALTER PROCEDURE dbo.sp_CRUDGen (
    ,@GenerateUpdate           bit           = 1    /* 1 = Generate the Update stored procedure, 0 = Will not generate the Update stored procedure */
    ,@GenerateUpdateMultiple   bit           = 1    /* 1 = Generate the Update stored procedure, 0 = Will not generate the Update stored procedure */
    ,@GenerateUpsert           bit           = 1    /* 1 = Generate the Upsert stored procedure, 0 = Will not generate the Upsert stored procedure */
-   ,@GenerateIndate           bit           = 1    /* 1 = Generate the Indate stored procedure, 0 = Will not generate the Indate stored procedure */
+   ,@GenerateIndate           bit           = 0    /* 1 = Generate the Indate stored procedure, 0 = Will not generate the Indate stored procedure */
    ,@GenerateDelete           bit           = 1    /* 1 = Generate the Delete stored procedure, 0 = Will not generate the Delete stored procedure */
    ,@GenerateDeleteMultiple   bit           = 1    /* 1 = Generate the DeleteMultiple stored procedure, 0 = Will not generate the DeleteMultiple stored procedure */
    ,@GenerateSearch           bit           = 1    /* 1 = Generate the Search stored procedure, 0 = Will not generate the Search stored procedure */
@@ -138,8 +138,8 @@ AS
         /**********************************************************************************************************************
         ** Set varibles
         **********************************************************************************************************************/
-        SET @Version = '1.06.01';
-        SET @VersionDate = '20211102';
+        SET @Version = '1.07.01';
+        SET @VersionDate = '20211103';
         SET @ScriptVersionName = N'sp_CRUDGen v' + @Version + N' - ' + DATENAME(MONTH, @VersionDate) + N' ' + RIGHT('0' + DATENAME(DAY, @VersionDate), 2) + N', ' + DATENAME(YEAR, @VersionDate);
         SET @ExecuteOutputString = N'';
         SET @UserNameString = CAST(SYSTEM_USER AS nvarchar(MAX));
