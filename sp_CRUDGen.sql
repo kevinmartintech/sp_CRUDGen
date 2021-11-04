@@ -2224,6 +2224,7 @@ AS
 ** Description: Used to update or insert a single row in the ' + @SchemaName + N'.' + @TableName + ' table. ' + @TableDescription + N'
 **
 ** Notes:       If your table includes the column RowVersionStamp optimistic concurrency T-SQL code will be generated.
+**              Consider using the Indate (Insert/Update) stored procedure if you expect more inserts than updates.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
@@ -2528,6 +2529,7 @@ AS
 ** Description: Used to insert or update a single row in the ' + @SchemaName + N'.' + @TableName + ' table. ' + @TableDescription + N'
 **
 ** Notes:       If your table includes the column RowVersionStamp optimistic concurrency T-SQL code will be generated.
+**              Consider using the Upsert (Update/Insert) stored procedure if you expect more updates than inserts.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
