@@ -1068,18 +1068,18 @@ AS
                         **********************************************************************************************************************/
                         IF @Depth = 0
                             BEGIN
-                                SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + N' AS ' + @referenced_alias + N'/*[JOIN CONDITION]*/' + CASE WHEN LEN(@referenced_table_description) > 0
+                                SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + N' AS ' + QUOTENAME(@referenced_alias) + N'/*[JOIN CONDITION]*/' + CASE WHEN LEN(@referenced_table_description) > 0
                                                                                                                                                                                                        THEN N' /* ' + @referenced_table_description + N' */'
                                                                                                                                                                                                   ELSE N''
                                                                                                                                                                                               END;
                             END;
                         ELSE IF @Depth > 0
                                  BEGIN
-                                     SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + N' AS ' + @referenced_alias + CASE WHEN LEN(@referenced_table_description) > 0
+                                     SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + N' AS ' + QUOTENAME(@referenced_alias) + CASE WHEN LEN(@referenced_table_description) > 0
                                                                                                                                                                                   THEN N' /* ' + @referenced_table_description + N' */'
                                                                                                                                                                              ELSE N''
                                                                                                                                                                          END;
-                                     SET @FromString = @FromString + @NewLineString + N'/*[ON SPACE]*/ON ' + @parent_alias + N'.' + QUOTENAME(@parent_column) + N' = ' + @referenced_alias + N'.' + QUOTENAME(@referenced_column);
+                                     SET @FromString = @FromString + @NewLineString + N'/*[ON SPACE]*/ON ' + QUOTENAME(@parent_alias) + N'.' + QUOTENAME(@parent_column) + N' = ' + QUOTENAME(@referenced_alias) + N'.' + QUOTENAME(@referenced_column);
                                  END;
 
 
@@ -1443,7 +1443,7 @@ AS
                         ** Build the SELECT clause
                         **********************************************************************************************************************/
                         SELECT
-                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
+                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(QUOTENAME(CL.TableAlias) AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                                                                        END
@@ -1473,7 +1473,7 @@ AS
                         ** Build the WHERE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                            @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                                               END
@@ -1535,7 +1535,7 @@ AS
         SELECT
              '                                   + REPLACE(@SelectString, N'/*INDENT SPACES*/', N'            ') + N'
         FROM
-            '                                    + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + CAST(N' AS ' AS nvarchar(MAX)) + @referenced_alias + CASE WHEN LEN(@TableDescription) > 0 THEN N' /* ' + @TableDescription + N' */' ELSE N'' END;
+            '                                    + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + CAST(N' AS ' AS nvarchar(MAX)) + QUOTENAME(@referenced_alias) + CASE WHEN LEN(@TableDescription) > 0 THEN N' /* ' + @TableDescription + N' */' ELSE N'' END;
 
                         IF LEN(@WhereString) > 0
                             BEGIN
@@ -1568,7 +1568,7 @@ AS
                         ** Build the SELECT clause
                         **********************************************************************************************************************/
                         SELECT
-                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
+                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(QUOTENAME(CL.TableAlias) AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                                                                        END
@@ -1611,7 +1611,7 @@ AS
                         ** Build the WHERE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @WhereString = @WhereString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                            @WhereString = @WhereString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                       THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                  ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                              END
@@ -1760,7 +1760,7 @@ AS
                                                                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                 END
-                           ,@JoinString  = @JoinString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + CAST(N' = J.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                           ,@JoinString  = @JoinString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + CAST(N' = J.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                     THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                            END
@@ -1908,7 +1908,7 @@ AS
                                                                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                 END
-                           ,@JoinString  = @JoinString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + CAST(N' = J.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                           ,@JoinString  = @JoinString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + CAST(N' = J.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                     THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                            END
@@ -2024,7 +2024,7 @@ AS
                      ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 FROM
-                    ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N' AS ' + @TableAlias + N'
+                    ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N' AS ' + QUOTENAME(@TableAlias) + N'
                     INNER JOIN #JSON AS J
                         ON ' + REPLACE(@JoinString, N'/*INDENT SPACES*/', N'                           ') + N';
             END
@@ -2802,8 +2802,8 @@ AS
                         SELECT
                             @TemporaryTableStringColumnType = @TemporaryTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + N' NULL'
                            ,@TemporaryTableStringType       = @TemporaryTableStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName)
-                           ,@SelectString                   = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName)
-                           ,@JoinString                     = @JoinString + @NewLineString + N'/*INDENT SPACES*/AND ' + N'K.' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName)
+                           ,@SelectString                   = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.TableAlias) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName)
+                           ,@JoinString                     = @JoinString + @NewLineString + N'/*INDENT SPACES*/AND ' + N'[K].' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName)
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -3017,45 +3017,45 @@ AS
 
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
                     WHEN ''Equals''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''EqualsWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''DoesNotEqual''                   THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''DoesNotEqualWithBlanks''         THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThan''                    THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''GreaterThanWithBlanks''          THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThanOrEqualTo''           THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''GreaterThanOrEqualToWithBlanks'' THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThan''                       THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''LessThanWithBlanks''             THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThanOrEqualTo''              THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''LessThanOrEqualToWithBlanks''    THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''Between''                        THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
             WHEN ''BetweenWithBlanks''              THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''NotBetween''                     THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
             WHEN ''NotBetweenWithBlanks''           THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''Blanks''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
             WHEN ''NonBlanks''                      THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
             WHEN ''Exists''                         THEN N''
-    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
             WHEN ''NotExists''                      THEN N''
-    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                                                     ELSE N''
     AND 1 = 2 /* Operator is not supported */''
                 END
@@ -3064,37 +3064,37 @@ AS
                                                                                 THEN N'
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
                     WHEN ''Equals''                   THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
             WHEN ''EqualsWithBlanks''         THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
             WHEN ''DoesNotEqual''             THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
             WHEN ''DoesNotEqualWithBlanks''   THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
             WHEN ''BeginsWith''               THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
             WHEN ''BeginsWithWithBlanks''     THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
             WHEN ''EndsWith''                 THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
             WHEN ''EndsWithWithBlanks''       THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
             WHEN ''Contains''                 THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
             WHEN ''ContainsWithBlanks''       THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
             WHEN ''DoesNotContain''           THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
             WHEN ''DoesNotContainWithBlanks'' THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
             WHEN ''Blanks''                   THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
             WHEN ''NonBlanks''                THEN N''
-    AND (NULLIF(LEN(' +     CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N'), 0)) IS NOT NULL''
+    AND (NULLIF(LEN(' +     QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N'), 0)) IS NOT NULL''
             WHEN ''Exists''                   THEN N''
-    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
             WHEN ''NotExists''                THEN N''
-    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                                             ELSE N''
     AND 1 = 2 /* Operator is not supported */''
                 END
@@ -3104,119 +3104,119 @@ AS
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
 
                     WHEN ''Equals''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                        END + N'''
             WHEN ''EqualsWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''DoesNotEqual''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                         END + N'''
             WHEN ''DoesNotEqualWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThan''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                        END + N'''
             WHEN ''GreaterThanWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThanOrEqualTo''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                         END + N'''
             WHEN ''GreaterThanOrEqualToWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThan''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                        END + N'''
             WHEN ''LessThanWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThanOrEqualTo''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                         END + N'''
             WHEN ''LessThanOrEqualToWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''Between'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
                                                                                         END + N'''
                     ELSE N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
                                                                                         END + N'''
                                     END
 
             WHEN ''BetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                         END + N'''
                     ELSE N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                         END + N'''
                                     END
             WHEN ''NotBetween'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
                                                                                        END + N'''
                     ELSE N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
                                                                                        END + N'''
                                     END
 
             WHEN ''NotBetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                        END + N'''
                     ELSE N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                        END + N'''
                                     END
             WHEN ''Blanks''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
             WHEN ''NonBlanks''                      THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
             WHEN ''Exists''                         THEN N''
-    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
             WHEN ''NotExists''                      THEN N''
-    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
             ELSE N''
     AND 1 = 2 /* Operator is not supported */''
                 END
@@ -3225,45 +3225,45 @@ AS
                                                                                                   THEN N'
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
                     WHEN ''Equals''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''EqualsWithBlanks''               THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''DoesNotEqual''                   THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''DoesNotEqualWithBlanks''         THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThan''                    THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''GreaterThanWithBlanks''          THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThanOrEqualTo''           THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''GreaterThanOrEqualToWithBlanks'' THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThan''                       THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''LessThanWithBlanks''             THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThanOrEqualTo''              THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
             WHEN ''LessThanOrEqualToWithBlanks''    THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''Between''                        THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
             WHEN ''BetweenWithBlanks''                        THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''NotBetween''                        THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
             WHEN ''NotBetweenWithBlanks''                        THEN N''
-    AND (' +                CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+    AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''Blanks''                         THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
             WHEN ''NonBlanks''                      THEN N''
-    AND ' +                 CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
+    AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
             WHEN ''Exists''                         THEN N''
-    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
             WHEN ''NotExists''                      THEN N''
-    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+    AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                                                     ELSE N''
     AND 1 = 2 /* Operator is not supported */''
                 END
@@ -3453,8 +3453,8 @@ WHILE EXISTS (
     SELECT
         *
     FROM
-        #Keys AS K
-        INNER JOIN '                                       + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + N' AS ' + @TableAlias + N'
+        #Keys AS [K]
+        INNER JOIN '                                       + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + N' AS ' + QUOTENAME(@TableAlias) + N'
             ON '                                           + REPLACE(@JoinString, N'/*INDENT SPACES*/', N'            ') + N'
     )
     BEGIN
@@ -3463,17 +3463,17 @@ WHILE EXISTS (
                 SELECT TOP (1000) /* Batch Number */
                      '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                ') + N'
                 FROM
-                    #Keys AS K
+                    #Keys AS [K]
                 WHERE
-                    K.KeyId >= @FirstKeyId
+                    [K].KeyId >= @FirstKeyId
                 ORDER BY
-                    K.KeyId
+                    [K].KeyId
             )
         DELETE
-            '                                              + @TableAlias + N'
+            '                                              + QUOTENAME(@TableAlias) + N'
         FROM
-            Keys AS K
-            INNER JOIN '                                   + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + N' AS ' + @TableAlias + N'
+            Keys AS [K]
+            INNER JOIN '                                   + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + N' AS ' + QUOTENAME(@TableAlias) + N'
                 ON '                                       + REPLACE(@JoinString, N'/*INDENT SPACES*/', N'                ') + N';
 
         /* If our FirstId filtered out all rows, reset it, something went wrong: */
@@ -3484,15 +3484,15 @@ WHILE EXISTS (
 
         /* Reset our low key for the next pass: */
         SELECT TOP (1)
-            @FirstKeyId = K.KeyId
+            @FirstKeyId = [K].KeyId
         FROM
-            #Keys                   AS K
-            INNER JOIN '                                   + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + N' AS ' + @TableAlias + N'
+            #Keys                   AS [K]
+            INNER JOIN '                                   + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName) + N' AS ' + QUOTENAME(@TableAlias) + N'
                 ON '                                       + REPLACE(@JoinString, N'/*INDENT SPACES*/', N'                ') + N'
         WHERE
-            K.KeyId >= @FirstKeyId
+            [K].KeyId >= @FirstKeyId
         ORDER BY
-            K.KeyId;
+            [K].KeyId;
     END;''
 
         IF @Debug = 1
@@ -3605,7 +3605,7 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                         ** Build the SELECT clause
                         **********************************************************************************************************************/
                         SELECT
-                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(CL.TableAlias AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
+                            @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(QUOTENAME(CL.TableAlias) AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                                                                        END
@@ -3806,45 +3806,45 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
                     WHEN ''Equals''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''EqualsWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''DoesNotEqual''                   THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''DoesNotEqualWithBlanks''         THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThan''                    THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''GreaterThanWithBlanks''          THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThanOrEqualTo''           THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''GreaterThanOrEqualToWithBlanks'' THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThan''                       THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''LessThanWithBlanks''             THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThanOrEqualTo''              THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''LessThanOrEqualToWithBlanks''    THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''Between''                        THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
                     WHEN ''BetweenWithBlanks''              THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''NotBetween''                     THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End''
                     WHEN ''NotBetweenWithBlanks''           THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT BETWEEN @' + CL.ColumnNameCleaned + N'Begin AND @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''Blanks''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
                     WHEN ''NonBlanks''                      THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
                     WHEN ''Exists''                         THEN N''
-            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                     WHEN ''NotExists''                      THEN N''
-            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                                                           ELSE N''
             AND 1 = 2 /* Operator is not supported */''
                 END
@@ -3853,37 +3853,37 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                                                                                 THEN N'
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
                     WHEN ''Equals''                   THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
                     WHEN ''EqualsWithBlanks''         THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
                     WHEN ''DoesNotEqual''             THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
                     WHEN ''DoesNotEqualWithBlanks''   THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> '''''''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
                     WHEN ''BeginsWith''               THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
                     WHEN ''BeginsWithWithBlanks''     THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE '''''''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
                     WHEN ''EndsWith''                 THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''''''''
                     WHEN ''EndsWithWithBlanks''       THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + '''''''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
                     WHEN ''Contains''                 THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
                     WHEN ''ContainsWithBlanks''       THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
                     WHEN ''DoesNotContain''           THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%''''''
                     WHEN ''DoesNotContainWithBlanks'' THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' NOT LIKE ''''%'''' + @' + CL.ColumnNameCleaned + N'Begin + ''''%'''' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
                     WHEN ''Blanks''                   THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = '''''''')''
                     WHEN ''NonBlanks''                THEN N''
-            AND (NULLIF(LEN(' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N'), 0)) IS NOT NULL''
+            AND (NULLIF(LEN(' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N'), 0)) IS NOT NULL''
                     WHEN ''Exists''                   THEN N''
-            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                     WHEN ''NotExists''                THEN N''
-            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                                                     ELSE N''
             AND 1 = 2 /* Operator is not supported */''
                 END
@@ -3893,119 +3893,119 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
 
                     WHEN ''Equals''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                        END + N'''
                     WHEN ''EqualsWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''DoesNotEqual''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                         END + N'''
                     WHEN ''DoesNotEqualWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThan''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                        END + N'''
                     WHEN ''GreaterThanWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThanOrEqualTo''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                         END + N'''
                     WHEN ''GreaterThanOrEqualToWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThan''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                        END + N'''
                     WHEN ''LessThanWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThanOrEqualTo''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
                                                                                         END + N'''
                     WHEN ''LessThanOrEqualToWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
                                                                                                  THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
                                                                                             ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''Between'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
                                                                                         END + N'''
                             ELSE N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
                                                                                         END + N'''
                                           END
 
                     WHEN ''BetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                         END + N'''
                             ELSE N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                         END + N'''
                                           END
                     WHEN ''NotBetween'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
                                                                                        END + N'''
                             ELSE N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
                                                                                        END + N'''
                                           END
 
                     WHEN ''NotBetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                        END + N'''
                             ELSE N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
+                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
                                                                                        END + N'''
                                           END
                     WHEN ''Blanks''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
                     WHEN ''NonBlanks''                      THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
                     WHEN ''Exists''                         THEN N''
-            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                     WHEN ''NotExists''                      THEN N''
-            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                     ELSE N''
             AND 1 = 2 /* Operator is not supported */''
                 END
@@ -4014,45 +4014,45 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                                                                                                   THEN N'
                 CASE @' +   CL.ColumnNameCleaned + N'Operator
                     WHEN ''Equals''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''EqualsWithBlanks''               THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''DoesNotEqual''                   THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''DoesNotEqualWithBlanks''         THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThan''                    THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''GreaterThanWithBlanks''          THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThanOrEqualTo''           THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''GreaterThanOrEqualToWithBlanks'' THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThan''                       THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''LessThanWithBlanks''             THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThanOrEqualTo''              THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin''
                     WHEN ''LessThanOrEqualToWithBlanks''    THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''Between''                        THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
                     WHEN ''BetweenWithBlanks''                        THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''NotBetween''                        THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End))''
                     WHEN ''NotBetweenWithBlanks''                        THEN N''
-            AND (' +        CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+            AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < @' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD('' + @' + CL.ColumnNameCleaned + N'EndPrecision + '', 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''Blanks''                         THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
                     WHEN ''NonBlanks''                      THEN N''
-            AND ' +         CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
+            AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NOT NULL''
                     WHEN ''Exists''                         THEN N''
-            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                     WHEN ''NotExists''                      THEN N''
-            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + CL.TableAlias + N'.' + QUOTENAME(CL.ColumnName) + N')''
+            AND NOT EXISTS (SELECT * FROM #' + CL.ColumnNameCleaned + N'Value WHERE ' + QUOTENAME(CL.ColumnName) + N' = ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N')''
                                                           ELSE N''
             AND 1 = 2 /* Operator is not supported */''
                 END
@@ -4310,7 +4310,7 @@ AS
 
         /* Build the ORDER BY */
         SELECT
-            @OrderByString = @OrderByString + N'', '' + CASE WHEN TL.TableAlias IS NOT NULL THEN TL.TableAlias + N''.'' ELSE N'''' END + OC.ColumnName + CASE WHEN OC.Direction = N''DESC'' THEN N'' DESC'' ELSE N'' ASC'' END
+            @OrderByString = @OrderByString + N'', '' + CASE WHEN TL.TableAlias IS NOT NULL THEN QUOTENAME(TL.TableAlias) + N''.'' ELSE N'''' END + OC.ColumnName + CASE WHEN OC.Direction = N''DESC'' THEN N'' DESC'' ELSE N'' ASC'' END
         FROM
             #OrderColumns              AS OC
             LEFT OUTER JOIN #TableList AS TL
@@ -4343,7 +4343,7 @@ AS
 WITH Keys
     AS (
         SELECT
-            '                                      + QUOTENAME(@IdentityColumnNameString) + N' = ' + @IdentityColumnTableAliasString + N'.' + QUOTENAME(@IdentityColumnNameString) + N'
+            '                                      + QUOTENAME(@IdentityColumnNameString) + N' = ' + QUOTENAME(@IdentityColumnTableAliasString) + N'.' + QUOTENAME(@IdentityColumnNameString) + N'
             ,RowNumber = ROW_NUMBER() OVER (ORDER BY '' + @OrderByString + N'')
         FROM
             '                                      + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'                '), N'/*INDENT SPACES*/', N'            '), N'/*[JOIN CONDITION]*/', N'') + N'
@@ -4353,7 +4353,7 @@ WITH Keys
 SET @StringToExecute = @StringToExecute + N''
 ),Counts
     AS (
-        SELECT RowsTotal = COUNT_BIG(*) FROM Keys AS K
+        SELECT RowsTotal = COUNT_BIG(*) FROM Keys AS [K]
     )
 SELECT
      '                                             + REPLACE(@SelectString, N'/*INDENT SPACES*/', N'    ') + N'
@@ -4361,13 +4361,13 @@ SELECT
 FROM
     Keys
     INNER JOIN '                                   + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'        '), N'/*INDENT SPACES*/', N'    '), N'/*[JOIN CONDITION]*/', N'
-        ON Keys.' + QUOTENAME(@IdentityColumnNameString) + N' = ' + @IdentityColumnTableAliasString + N'.' + QUOTENAME(@IdentityColumnNameString) + N'') + N'
+        ON [Keys].' + QUOTENAME(@IdentityColumnNameString) + N' = ' + QUOTENAME(@IdentityColumnTableAliasString) + N'.' + QUOTENAME(@IdentityColumnNameString) + N'') + N'
     CROSS JOIN Counts
 WHERE
-    Keys.RowNumber > (( @PageNumber -1 ) * @PageSize )
-AND Keys.RowNumber < (( @PageNumber * @PageSize ) + 1)
+    [Keys].RowNumber > (( @PageNumber -1 ) * @PageSize )
+AND [Keys].RowNumber < (( @PageNumber * @PageSize ) + 1)
 ORDER BY
-    Keys.RowNumber;''
+    [Keys].RowNumber;''
 
         IF @Debug = 1
             BEGIN
