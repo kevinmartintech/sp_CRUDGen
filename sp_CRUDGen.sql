@@ -32,8 +32,7 @@ GO
 **
 **              Install and execute sp_CRUDGen in the user database and not master.
 **
-**              Runtime: each table takes around 7 seconds to create the stored procedures. There is some looping in 
-**                        sp_CRUDGen that could be changed to set based operation if anyone would like.
+**              Runtime: This depends on the complexity of your table structure.
 **
 **              Fork the repo to change the T-SQL style (or format with a tool like Redgate SQL Prompt) and naming 
 **               conventions. Remember to create a pull request if you added something cool so the rest of the community 
@@ -43,13 +42,32 @@ GO
 **
 **              Use FOREIGN KEY REFERENCES between tables for ReadEager and Search to recurse over related tables.
 **
-**              There are included table columns you can edit in sp_CRUDGen to customize for your column naming convention.
-**                RowUpdatePersonId int - Is the person who last updated the row. FOREIGN KEY REFERENCES to a Person table.
-**                RowUpdateTime datetimeoffset(7) - is the date and time with offset when the row was last updated.
-**                RowCreateTime datetimeoffset(7) - is the date and time with offset when the row was created.
-**                RowVersionStamp timestamp/rowversion - is used for optimistic concurrency in the delete and update 
-**                 stored procedures.
+**              There are paramaters you can set in sp_CRUDGen to customize for your column naming convention.
 **
+**                @RowCreatePersonColumnName - is the column name used in your tables for the person who created a row. 
+**                                              FOREIGN KEY REFERENCES to a Person table.
+**                @RowCreateTimeColumnName   - is the column name used in your tables to capture the datetime when the 
+**                                              row was created.
+**                @RowCreateTimeFunction     - is the system date function you want used in your tables for the 
+**                                              @RowCreateTimeColumnName to capture when the row was created.
+**
+**                @RowUpdatePersonColumnName - is the column name used in your tables for the person who updated a row. 
+**                                              FOREIGN KEY REFERENCES to a Person table.
+**                @RowUpdateTimeColumnName   - is the column name used in your tables to capture the datetime when the 
+**                                              row was last updated.
+**                @RowUpdateTimeFunction     - is the system date function you want used in your tables for the 
+**                                              @RowUpdateTimeColumnName to capture when the row was updated.
+**
+**                @RowVersionStampColumnName - is the column name in your tables for the rowversion/timestamp used for 
+**                                              optimistic concurrency in the delete and update stored procedures.
+**
+**                @TemporalRowStartColumName - is the system-versioned temporal tables column name in your tables for the 
+**                                              start period (GENERATED ALWAYS AS ROW START). This column will be ignored 
+**                                              for inserts and deletes.
+**                @TemporalRowEndColumName   - is the system-versioned temporal tables column name in your tables for the 
+**                                              end period (GENERATED ALWAYS AS ROW END). This column will be ignored 
+**                                              for inserts and deletes.
+**                
 **              The Search stored procedure does not work with every column data type.
 **
 **              If you use extended properties description names on tables and columns they will be included as comments 
@@ -60,22 +78,35 @@ GO
 ** Parameters:  See comments to the right of the parameters below.
 **********************************************************************************************************************/
 ALTER PROCEDURE dbo.sp_CRUDGen (
-    @GenerateStoredProcedures bit           = 0    /* 0 = Will only create the generated T-SQL to create the stored procedures, 1 = Will also create the stored procedures */
-   ,@SchemaTableName          nvarchar(200) = NULL /* NULL = Generate all tables, [SCHEMA.TABLENAME] or [TABLENAME] for just one table */
-   ,@GenerateCreate           bit           = 1    /* 1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure */
-   ,@GenerateCreateMultiple   bit           = 1    /* 1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure */
-   ,@GenerateRead             bit           = 1    /* 1 = Generate the Read stored procedure, 0 = Will not generate the Read stored procedure */
-   ,@GenerateReadEager        bit           = 1    /* 1 = Generate the ReadEager stored procedure, 0 = Will not generate the ReadEager stored procedure */
-   ,@GenerateUpdate           bit           = 1    /* 1 = Generate the Update stored procedure, 0 = Will not generate the Update stored procedure */
-   ,@GenerateUpdateMultiple   bit           = 1    /* 1 = Generate the Update stored procedure, 0 = Will not generate the Update stored procedure */
-   ,@GenerateUpsert           bit           = 1    /* 1 = Generate the Upsert stored procedure, 0 = Will not generate the Upsert stored procedure */
-   ,@GenerateIndate           bit           = 0    /* 1 = Generate the Indate stored procedure, 0 = Will not generate the Indate stored procedure */
-   ,@GenerateDelete           bit           = 1    /* 1 = Generate the Delete stored procedure, 0 = Will not generate the Delete stored procedure */
-   ,@GenerateDeleteMultiple   bit           = 1    /* 1 = Generate the DeleteMultiple stored procedure, 0 = Will not generate the DeleteMultiple stored procedure */
-   ,@GenerateSearch           bit           = 1    /* 1 = Generate the Search stored procedure, 0 = Will not generate the Search stored procedure */
-   ,@VersionCheckMode         bit           = 0    /* 1 = Will only return the version number and not execute, 0 = Will execute this stored procedure */
-   ,@Version                  varchar(30)   = NULL OUTPUT
-   ,@VersionDate              datetime      = NULL OUTPUT
+    @GenerateStoredProcedures  bit           = 0                        /* 0 = Will only create the generated T-SQL to create the stored procedures, 1 = Will also create the stored procedures */
+   ,@SchemaTableOrViewName     nvarchar(200) = NULL                     /* NULL = Generate all tables & views, [SCHEMA.TABLEORVIEWNAME] or [TABLEORVIEWNAME] for just one table or view */
+   ,@GenerateCreate            bit           = 1                        /* 1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure */
+   ,@GenerateCreateMultiple    bit           = 1                        /* 1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure */
+   ,@GenerateRead              bit           = 1                        /* 1 = Generate the Read stored procedure, 0 = Will not generate the Read stored procedure */
+   ,@GenerateReadEager         bit           = 1                        /* 1 = Generate the ReadEager stored procedure, 0 = Will not generate the ReadEager stored procedure */
+   ,@GenerateUpdate            bit           = 1                        /* 1 = Generate the Update stored procedure, 0 = Will not generate the Update stored procedure */
+   ,@GenerateUpdateMultiple    bit           = 1                        /* 1 = Generate the Update stored procedure, 0 = Will not generate the Update stored procedure */
+   ,@GenerateUpsert            bit           = 1                        /* 1 = Generate the Upsert stored procedure, 0 = Will not generate the Upsert stored procedure */
+   ,@GenerateIndate            bit           = 0                        /* 1 = Generate the Indate stored procedure, 0 = Will not generate the Indate stored procedure */
+   ,@GenerateDelete            bit           = 1                        /* 1 = Generate the Delete stored procedure, 0 = Will not generate the Delete stored procedure */
+   ,@GenerateDeleteMultiple    bit           = 1                        /* 1 = Generate the DeleteMultiple stored procedure, 0 = Will not generate the DeleteMultiple stored procedure */
+   ,@GenerateSearch            bit           = 1                        /* 1 = Generate the Search stored procedure, 0 = Will not generate the Search stored procedure */
+   ,@SearchSeparatorString     nvarchar(MAX) = N' to '                  /* Set this string to match your separator used when passing in a search parameter using the 'Between', 'BetweenWithBlanks', 'NotBetween', and 'NotBetweenWithBlanks' operators */
+   ,@RowCreatePersonColumnName nvarchar(MAX) = N'RowCreatePersonId'     /* Update this to match your column name */
+   ,@RowCreatePersonInclude    bit           = 0                        /* 1 = Will generate table joins to the person table, 0 = Will not generate table joins to the person table */
+   ,@RowCreateTimeColumnName   nvarchar(MAX) = N'RowCreateTime'         /* Update this to match your column name */
+   ,@RowCreateTimeFunction     varchar(30)   = 'SYSDATETIMEOFFSET()'    /* {SYSDATETIMEOFFSET() | SYSUTCDATETIME() | SYSDATETIME() | GETUTCDATE() | GETDATE() | CURRENT_TIMESTAMP} */
+   ,@RowUpdatePersonColumnName nvarchar(MAX) = N'RowUpdatePersonId'     /* Update this to match your column name */
+   ,@RowUpdatePersonInclude    bit           = 0                        /* 1 = Will generate table joins to the person table, 0 = Will not generate table joins to the person table */
+   ,@RowUpdateTimeColumnName   nvarchar(MAX) = N'RowUpdateTime'         /* Update this to match your column name */
+   ,@RowUpdateTimeFunction     varchar(30)   = 'SYSDATETIMEOFFSET()'    /* {SYSDATETIMEOFFSET() | SYSUTCDATETIME() | SYSDATETIME() | GETUTCDATE() | GETDATE() | CURRENT_TIMESTAMP} */
+   ,@RowVersionStampColumnName nvarchar(MAX) = N'RowVersionStamp'       /* Is the column name in your tables for the rowversion/timestamp used for optimistic concurrency in the delete and update stored procedures. */
+   ,@TemporalRowStartColumName nvarchar(MAX) = N'RowValidFromTime'      /* Is the system-versioned temporal tables column name in your tables for the start period (GENERATED ALWAYS AS ROW START). This column will be ignored for inserts and deletes. */
+   ,@TemporalRowEndColumName   nvarchar(MAX) = N'RowValidToTime'        /* Is the system-versioned temporal tables column name in your tables for the end period (GENERATED ALWAYS AS ROW END). This column will be ignored for inserts and deletes. */
+   ,@ForceTemporalForView      bit           = 0                        /* 1 = Forces the view to allow temporal functionality, 0 = The view will not allow temporal functionality */
+   ,@VersionCheckMode          bit           = 0                        /* 1 = Will only return the version number and not execute, 0 = Will execute this stored procedure */
+   ,@Version                   varchar(30)   = NULL OUTPUT
+   ,@VersionDate               datetime      = NULL OUTPUT
 )
 WITH EXECUTE AS CALLER, RECOMPILE
 AS
@@ -87,6 +118,10 @@ AS
         ** Declare varibles
         **********************************************************************************************************************/
         DECLARE @ScriptVersionName nvarchar(50);
+        DECLARE @ProductVersion nvarchar(128);
+        DECLARE @ProductVersionMajor decimal(10, 2);
+        DECLARE @ProductVersionMinor decimal(10, 2);
+        DECLARE @StringToExecute nvarchar(MAX);
         DECLARE @ExecuteOutputString nvarchar(MAX);
         DECLARE @ExecuteDropString nvarchar(MAX);
         DECLARE @ExecuteCreateString nvarchar(MAX);
@@ -105,12 +140,14 @@ AS
         DECLARE @SP_ExecuteSQLParametersString nvarchar(MAX);
         DECLARE @SelectString nvarchar(MAX);
         DECLARE @InsertIntoString nvarchar(MAX);
+        DECLARE @InsertIntoSelectString nvarchar(MAX);
         DECLARE @InsertIntoValuesString nvarchar(MAX);
         DECLARE @UpdateString nvarchar(MAX);
         DECLARE @UpdateJSONString nvarchar(MAX);
         DECLARE @OutputString nvarchar(MAX);
         DECLARE @JoinString nvarchar(MAX);
         DECLARE @FromString nvarchar(MAX);
+        DECLARE @FromSearchKeysString nvarchar(MAX);
         DECLARE @TableListInsertValuesString nvarchar(MAX);
         DECLARE @WhereString nvarchar(MAX);
         DECLARE @BetweenVariableString nvarchar(MAX);
@@ -119,8 +156,13 @@ AS
         DECLARE @IdentityColumnNameString nvarchar(MAX);
         DECLARE @IdentityColumnTableAliasString nvarchar(MAX);
         DECLARE @TemporaryTableStringColumnType nvarchar(MAX);
-        DECLARE @OPENJSONWithString nvarchar(MAX);
+        DECLARE @TemporaryTableOutputStringColumnType nvarchar(MAX);
+        DECLARE @TemporaryJSONTableStringColumnType nvarchar(MAX);
+        DECLARE @OPENJSONWithCreateString nvarchar(MAX);
+        DECLARE @OPENJSONWithUpdateString nvarchar(MAX);
         DECLARE @TemporaryTableStringType nvarchar(MAX);
+        DECLARE @TemporaryTableOutputStringType nvarchar(MAX);
+        DECLARE @TemporaryJSONTableStringType nvarchar(MAX);
         DECLARE @UserNameString nvarchar(MAX);
         DECLARE @CreateTimeString nvarchar(MAX);
         DECLARE @NewLineString nvarchar(MAX);
@@ -139,13 +181,18 @@ AS
         /**********************************************************************************************************************
         ** Set varibles
         **********************************************************************************************************************/
-        SET @Version = '1.09.04';
-        SET @VersionDate = '20211211';
+        SET @Version = '3.02.05';
+        SET @VersionDate = '20220215';
         SET @ScriptVersionName = N'sp_CRUDGen v' + @Version + N' - ' + DATENAME(MONTH, @VersionDate) + N' ' + RIGHT('0' + DATENAME(DAY, @VersionDate), 2) + N', ' + DATENAME(YEAR, @VersionDate);
         SET @ExecuteOutputString = N'';
         SET @UserNameString = CAST(SYSTEM_USER AS nvarchar(MAX));
         SET @CreateTimeString = CAST(CONVERT(nvarchar(30), GETUTCDATE(), 121) AS nvarchar(MAX)) + N' +00:00';
         SET @NewLineString = CAST(CHAR(13) + CHAR(10) AS nvarchar(MAX));
+        SET @ProductVersion = CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)); /* major.minor.build.revision */
+        SET @ProductVersionMajor = SUBSTRING(@ProductVersion, 1, CHARINDEX('.', @ProductVersion) + 1);
+        SET @ProductVersionMinor = PARSENAME(CONVERT(varchar(32), @ProductVersion), 2);
+        SET @StringToExecute = N'';
+
         SET @MITLicenseCommentString = N'/**********************************************************************************************************************
 ** MIT License
 ** 
@@ -195,26 +242,27 @@ AS
            ,ProcedureType       nvarchar(MAX) NOT NULL
            ,IsExistsFlag        bit           NOT NULL
            ,IsAutoGeneratedFlag bit           NOT NULL
+           ,IsTemporalTableFlag bit           NOT NULL DEFAULT 0
            ,IsProcessedFlag     bit           NOT NULL
         );
 
         /* Parse the passed in parameter */
-        IF @SchemaTableName IS NOT NULL
+        IF @SchemaTableOrViewName IS NOT NULL
             BEGIN
-                SET @SeparatorStartingPosition = CHARINDEX('.', @SchemaTableName);
+                SET @SeparatorStartingPosition = CHARINDEX('.', @SchemaTableOrViewName);
                 IF @SeparatorStartingPosition > 0
                     BEGIN
                         SELECT
-                            @SchemaName = LEFT(@SchemaTableName, @SeparatorStartingPosition - 1)
-                           ,@TableName  = RIGHT(@SchemaTableName, LEN(@SchemaTableName) - @SeparatorStartingPosition);
+                            @SchemaName = LEFT(@SchemaTableOrViewName, @SeparatorStartingPosition - 1)
+                           ,@TableName  = RIGHT(@SchemaTableOrViewName, LEN(@SchemaTableOrViewName) - @SeparatorStartingPosition);
                     END;
                 ELSE
                     BEGIN
-                        SELECT @SchemaName = NULL, @TableName = @SchemaTableName;
+                        SELECT @SchemaName = NULL, @TableName = @SchemaTableOrViewName;
                     END;
             END;
 
-        /* Insert into stored procedure list */
+        /* Insert into stored procedure list for tables */
         INSERT INTO #StoreProcedureList (
             table_object_id
            ,table_schema_id
@@ -342,12 +390,176 @@ AS
            ,T.name
         OPTION (RECOMPILE);
 
+        /* Insert into stored procedure list for views */
+        INSERT INTO #StoreProcedureList (
+            table_object_id
+           ,table_schema_id
+           ,SchemaName
+           ,TableName
+           ,TableDescription
+           ,ProcedureName
+           ,ProcedureType
+           ,IsExistsFlag
+           ,IsAutoGeneratedFlag
+           ,IsProcessedFlag
+           ,IsTemporalTableFlag
+        )
+        SELECT
+            table_object_id     = V.object_id
+           ,table_schema_id     = S.schema_id
+           ,SchemaName          = S.name
+           ,TableName           = V.name
+           ,TableDescription    = ISNULL(CAST(EP.value AS nvarchar(MAX)), N'')
+           ,ProcedureName       = CAST(V.name + P.ProcedureType AS sysname)
+           ,ProcedureType       = P.ProcedureType
+           ,IsExistsFlag        = CASE WHEN EXISTS (
+                                                SELECT
+                                                    *
+                                                FROM
+                                                    sys.sql_modules        AS SM2
+                                                    INNER JOIN sys.objects AS O2
+                                                        ON SM2.object_id = O2.object_id
+                                                    INNER JOIN sys.schemas AS S2
+                                                        ON O2.schema_id  = S2.schema_id
+                                                WHERE
+                                                    S2.name = S.name
+                                                AND O2.name = CAST(V.name + P.ProcedureType AS sysname)
+                                            )
+                                           THEN 1
+                                      ELSE 0
+                                  END
+           ,IsAutoGeneratedFlag = CASE WHEN EXISTS (
+                                                SELECT
+                                                    *
+                                                FROM
+                                                    sys.sql_modules        AS SM2
+                                                    INNER JOIN sys.objects AS O2
+                                                        ON SM2.object_id = O2.object_id
+                                                    INNER JOIN sys.schemas AS S2
+                                                        ON O2.schema_id  = S2.schema_id
+                                                WHERE
+                                                    S2.name = S.name
+                                                AND O2.name = CAST(V.name + P.ProcedureType AS sysname)
+                                                AND SM2.definition LIKE '%<auto-generated>%'
+                                            )
+                                           THEN 1
+                                      ELSE 0
+                                  END
+           ,IsProcessedFlag     = 0
+           ,IsTemporalTableFlag = CASE WHEN @ForceTemporalForView = 1 THEN 1 ELSE 0 END
+        FROM
+            sys.views                               AS V
+            INNER JOIN sys.schemas                  AS S
+                ON S.schema_id = V.schema_id
+            LEFT OUTER JOIN sys.extended_properties AS EP
+                ON V.object_id = EP.major_id
+                AND EP.minor_id = 0
+                AND EP.class = 1
+                AND EP.name = 'MS_Description'
+            CROSS JOIN (
+                SELECT
+                    ProcedureType = 'Create'
+                WHERE
+                    @GenerateCreate = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'CreateMultiple'
+                WHERE
+                    @GenerateCreateMultiple = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'Read'
+                WHERE
+                    @GenerateRead = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'ReadEager'
+                WHERE
+                    @GenerateReadEager = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'Update'
+                WHERE
+                    @GenerateUpdate = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'UpdateMultiple'
+                WHERE
+                    @GenerateUpdateMultiple = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'Upsert'
+                WHERE
+                    @GenerateUpsert = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'Indate'
+                WHERE
+                    @GenerateIndate = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'Delete'
+                WHERE
+                    @GenerateDelete = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'DeleteMultiple'
+                WHERE
+                    @GenerateDeleteMultiple = 1
+                UNION ALL
+                SELECT
+                    ProcedureType = 'Search'
+                WHERE
+                    @GenerateSearch = 1
+            )                                       AS P
+        WHERE
+            (V.name = @TableName OR @TableName IS NULL)
+        AND (S.name = @SchemaName OR @SchemaName IS NULL)
+        ORDER BY
+            S.name
+           ,V.name
+        OPTION (RECOMPILE);
 
         /* Delete stored procedures that are not going to be dropped and created */
         DELETE FROM
         #StoreProcedureList
         WHERE
             (IsExistsFlag = 1 AND IsAutoGeneratedFlag = 0);
+
+        /* Temporal Table Clean Up */
+        IF @ProductVersionMajor >= 13 /* SQL Server 2016+ */
+            BEGIN
+
+                /* Drop Temporal History Tables */
+                SET @StringToExecute = N'
+DELETE 
+    SPL
+FROM 
+    #StoreProcedureList AS SPL
+    INNER JOIN sys.tables AS T
+        ON SPL.table_object_id = T.object_id
+WHERE 
+    T.temporal_type = 1';
+
+                EXEC sys.sp_executesql @stmt = @StringToExecute;
+
+                /* Update Temporal Tables */
+                IF @ForceTemporalForView = 0
+                    BEGIN
+                    SET @StringToExecute = N'
+UPDATE
+    SPL
+SET 
+    SPL.IsTemporalTableFlag = 1
+FROM 
+    #StoreProcedureList AS SPL
+    INNER JOIN sys.tables AS T
+        ON SPL.table_object_id = T.object_id
+WHERE 
+    T.temporal_type = 2';
+                        EXEC sys.sp_executesql @stmt = @StringToExecute;
+                    END;
+            END;
 
         /* Build the FROM clause variables */
         DECLARE
@@ -357,22 +569,24 @@ AS
 
         /* Build the FROM clause varibles */
         DECLARE
-            @TableListId                  int
-           ,@Depth                        int
-           ,@parent_object_id             int
-           ,@referenced_object_id         int
-           ,@referenced_schema            nvarchar(MAX)
-           ,@referenced_table             nvarchar(MAX)
-           ,@referenced_table_description nvarchar(MAX)
-           ,@referenced_alias             nvarchar(MAX)
-           ,@referenced_column            nvarchar(MAX)
-           ,@parent_schema                nvarchar(MAX)
-           ,@parent_table                 nvarchar(MAX)
-           ,@parent_alias                 nvarchar(MAX)
-           ,@parent_column                nvarchar(MAX)
-           ,@parent_column_is_nullable    bit
-           ,@HasTriggersFlag              bit
-           ,@HasRowVersionStampFlag       bit;
+            @TableListId                        int
+           ,@Depth                              int
+           ,@parent_object_id                   int
+           ,@referenced_object_id               int
+           ,@referenced_schema                  nvarchar(MAX)
+           ,@referenced_table                   nvarchar(MAX)
+           ,@referenced_table_description       nvarchar(MAX)
+           ,@referenced_alias                   nvarchar(MAX)
+           ,@referenced_column                  nvarchar(MAX)
+           ,@parent_schema                      nvarchar(MAX)
+           ,@parent_table                       nvarchar(MAX)
+           ,@parent_alias                       nvarchar(MAX)
+           ,@parent_column                      nvarchar(MAX)
+           ,@parent_column_is_nullable          bit
+           ,@HasTriggersFlag                    bit
+           ,@IsTemporalTableStoredProcedureFlag bit
+           ,@IsTemporalTableTableFlag           bit
+           ,@HasRowVersionStampFlag             bit;
 
 
         /**********************************************************************************************************************
@@ -384,13 +598,14 @@ AS
                 ** Set the variables to the next unprocessed row
                 **********************************************************************************************************************/
                 SELECT TOP (1)
-                    @StoreProcedureId = SPL.StoreProcedureId
-                   ,@SchemaName       = SPL.SchemaName
-                   ,@TableName        = SPL.TableName
-                   ,@TableDescription = SPL.TableDescription
-                   ,@ProcedureName    = SPL.ProcedureName
-                   ,@ProcedureType    = SPL.ProcedureType
-                   ,@table_object_id  = SPL.table_object_id
+                    @StoreProcedureId                   = SPL.StoreProcedureId
+                   ,@SchemaName                         = SPL.SchemaName
+                   ,@TableName                          = SPL.TableName
+                   ,@TableDescription                   = SPL.TableDescription
+                   ,@ProcedureName                      = SPL.ProcedureName
+                   ,@ProcedureType                      = SPL.ProcedureType
+                   ,@table_object_id                    = SPL.table_object_id
+                   ,@IsTemporalTableStoredProcedureFlag = SPL.IsTemporalTableFlag
                 FROM
                     #StoreProcedureList AS SPL
                 WHERE
@@ -407,12 +622,14 @@ AS
                 SET @SP_ExecuteSQLParametersString = N'';
                 SET @SelectString = N'';
                 SET @InsertIntoString = N'';
+                SET @InsertIntoSelectString = N'';
                 SET @InsertIntoValuesString = N'';
                 SET @UpdateString = N'';
                 SET @UpdateJSONString = N'';
                 SET @OutputString = N'';
                 SET @JoinString = N'';
                 SET @FromString = N'';
+                SET @FromSearchKeysString = N'';
                 SET @TableListInsertValuesString = N'';
                 SET @WhereString = N'';
                 SET @TableAlias = N'';
@@ -422,8 +639,13 @@ AS
                 SET @IdentityColumnNameString = N'';
                 SET @IdentityColumnTableAliasString = N'';
                 SET @TemporaryTableStringColumnType = N'';
-                SET @OPENJSONWithString = N'';
+                SET @TemporaryTableOutputStringColumnType = N'';
+                SET @TemporaryJSONTableStringColumnType = N'';
+                SET @OPENJSONWithCreateString = N'';
+                SET @OPENJSONWithUpdateString = N'';
                 SET @TemporaryTableStringType = N'';
+                SET @TemporaryTableOutputStringType = N'';
+                SET @TemporaryJSONTableStringType = N'';
                 SET @ExecuteDropString = N'';
                 SET @ExecuteCreateString = N'';
                 SET @ExecuteCreateMultipleString = N'';
@@ -448,25 +670,71 @@ AS
                     END;
                 CREATE TABLE #TableList (
                     TableListId                  int           NOT NULL IDENTITY(1, 1) PRIMARY KEY
-                   ,Depth                        int           NOT NULL
+                   ,Depth                        int           NULL
                    ,parent_object_id             int           NULL
-                   ,referenced_object_id         int           NOT NULL
-                   ,referenced_schema            nvarchar(MAX) NOT NULL
-                   ,referenced_table             nvarchar(MAX) NOT NULL
-                   ,referenced_table_description nvarchar(MAX) NOT NULL
-                   ,referenced_alias             nvarchar(MAX) NOT NULL
+                   ,referenced_object_id         int           NULL
+                   ,referenced_schema            nvarchar(MAX) NULL
+                   ,referenced_table             nvarchar(MAX) NULL
+                   ,referenced_table_description nvarchar(MAX) NULL
+                   ,referenced_alias             nvarchar(MAX) NULL
                    ,referenced_column            nvarchar(MAX) NULL
                    ,parent_schema                nvarchar(MAX) NULL
                    ,parent_table                 nvarchar(MAX) NULL
                    ,parent_alias                 nvarchar(MAX) NULL
                    ,parent_column                nvarchar(MAX) NULL
                    ,parent_column_is_nullable    bit           NULL
-                   ,HasTriggersFlag              bit           NOT NULL
-                   ,IsProcessedFlag              bit           NOT NULL
+                   ,HasTriggersFlag              bit           NULL
+                   ,IsTemporalFlag               bit           NULL DEFAULT 0
+                   ,IsProcessedFlag              bit           NULL
+                   ,HierarchyPath                nvarchar(MAX) NULL
                 );
 
-                WITH Anchor
+                /* Find main table */
+                INSERT INTO #TableList (
+                    parent_object_id
+                   ,referenced_object_id
+                   ,Depth
+                   ,referenced_schema
+                   ,referenced_table
+                )
+                SELECT
+                    parent_object_id     = NULL
+                   ,referenced_object_id = T.object_id
+                   ,Depth                = 0
+                   ,referenced_schema    = S.name
+                   ,referenced_table     = T.name
+                FROM
+                    sys.tables             AS T
+                    INNER JOIN sys.schemas AS S
+                        ON T.schema_id = S.schema_id
+                WHERE
+                    T.object_id = @table_object_id;
+
+                /* Find main view */
+                INSERT INTO #TableList (
+                    parent_object_id
+                   ,referenced_object_id
+                   ,Depth
+                   ,referenced_schema
+                   ,referenced_table
+                )
+                SELECT
+                    parent_object_id     = NULL
+                   ,referenced_object_id = V.object_id
+                   ,Depth                = 0
+                   ,referenced_schema    = S.name
+                   ,referenced_table     = V.name
+                FROM
+                    sys.views              AS V
+                    INNER JOIN sys.schemas AS S
+                        ON V.schema_id = S.schema_id
+                WHERE
+                    V.object_id = @table_object_id;
+
+                /* Find main recursive tables */
+                WITH MainRecursive
                   AS (
+                      /* Find base table */
                       SELECT DISTINCT
                           parent_object_id          = FKC.parent_object_id
                          ,parent_schema             = S1.name
@@ -498,9 +766,23 @@ AS
                               ON C2.column_id  = FKC.referenced_column_id
                               AND C2.object_id = T2.object_id
                       WHERE
-                          FKC.parent_object_id = @table_object_id
-                      AND C1.name              <> 'RowUpdatePersonId'
+                          FKC.parent_object_id       = @table_object_id
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowUpdatePersonColumnName) > 1
+                                                                 THEN @RowUpdatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowUpdatePersonInclude = 1
+                      )
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowCreatePersonColumnName) > 1
+                                                                 THEN @RowCreatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowCreatePersonInclude = 1
+                      )
                       UNION ALL
+                      /* Perform the recursive query  */
                       SELECT
                           parent_object_id          = FKC.parent_object_id
                          ,parent_schema             = S1.name
@@ -511,221 +793,382 @@ AS
                          ,referenced_schema         = S2.name
                          ,referenced_table          = T2.name
                          ,referenced_column         = C2.name
-                         ,A.Depth + 1
-                         ,A.HierarchyPath + '->' + CAST(FKC.parent_object_id AS varchar(MAX))
+                         ,Depth                     = MR.Depth + 1
+                         ,HierarchyPath             = MR.HierarchyPath + '->' + CAST(FKC.parent_object_id AS varchar(MAX))
+                      FROM
+                          sys.foreign_key_columns  AS FKC
+                          INNER JOIN sys.objects   AS O
+                              ON O.object_id          = FKC.constraint_object_id
+                          INNER JOIN sys.tables    AS T1
+                              ON T1.object_id         = FKC.parent_object_id
+                          INNER JOIN sys.schemas   AS S1
+                              ON T1.schema_id         = S1.schema_id
+                          INNER JOIN sys.columns   AS C1
+                              ON C1.column_id         = FKC.parent_column_id
+                              AND C1.object_id        = T1.object_id
+                          INNER JOIN sys.tables    AS T2
+                              ON T2.object_id         = FKC.referenced_object_id
+                          INNER JOIN sys.schemas   AS S2
+                              ON T2.schema_id         = S2.schema_id
+                          INNER JOIN sys.columns   AS C2
+                              ON C2.column_id         = FKC.referenced_column_id
+                              AND C2.object_id        = T2.object_id
+                          INNER JOIN MainRecursive AS MR
+                              ON FKC.parent_object_id = MR.referenced_object_id
+                      WHERE
+                          FKC.parent_object_id       <> FKC.referenced_object_id
+                      AND MR.HierarchyPath NOT LIKE '%->' + CAST(FKC.parent_object_id AS varchar(MAX)) + '->%'
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowUpdatePersonColumnName) > 1
+                                                                 THEN @RowUpdatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowUpdatePersonInclude = 1
+                      )
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowCreatePersonColumnName) > 1
+                                                                 THEN @RowCreatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowCreatePersonInclude = 1
+                      )
+                  )
+                INSERT INTO #TableList (
+                    parent_object_id
+                   ,parent_schema
+                   ,parent_table
+                   ,parent_column
+                   ,parent_column_is_nullable
+                   ,referenced_object_id
+                   ,referenced_schema
+                   ,referenced_table
+                   ,referenced_column
+                   ,Depth
+                   ,HierarchyPath
+                )
+                SELECT
+                    A.parent_object_id
+                   ,A.parent_schema
+                   ,A.parent_table
+                   ,A.parent_column
+                   ,A.parent_column_is_nullable
+                   ,A.referenced_object_id
+                   ,A.referenced_schema
+                   ,A.referenced_table
+                   ,A.referenced_column
+                   ,A.Depth
+                   ,A.HierarchyPath
+                FROM
+                    MainRecursive AS A;
+
+                /* Find inheratance recursive tables */
+                WITH InheratanceRecursive
+                  AS (
+                      /* Find base tables */
+                      SELECT DISTINCT
+                          parent_object_id          = FKC.referenced_object_id
+                         ,parent_schema             = S1.name
+                         ,parent_table              = T1.name
+                         ,parent_column             = C1.name
+                         ,parent_column_is_nullable = 1
+                         ,referenced_object_id      = FKC.parent_object_id
+                         ,referenced_schema         = S2.name
+                         ,referenced_table          = T2.name
+                         ,referenced_column         = C2.name
+                         ,Depth                     = 1
+                         ,HierarchyPath             = CAST(FKC.referenced_object_id AS varchar(MAX)) + '->' + CAST(FKC.parent_object_id AS varchar(MAX))
                       FROM
                           sys.foreign_key_columns AS FKC
                           INNER JOIN sys.objects  AS O
-                              ON O.object_id          = FKC.constraint_object_id
+                              ON O.object_id   = FKC.constraint_object_id
                           INNER JOIN sys.tables   AS T1
-                              ON T1.object_id         = FKC.parent_object_id
+                              ON T1.object_id  = FKC.referenced_object_id
                           INNER JOIN sys.schemas  AS S1
-                              ON T1.schema_id         = S1.schema_id
+                              ON T1.schema_id  = S1.schema_id
                           INNER JOIN sys.columns  AS C1
+                              ON C1.column_id  = FKC.parent_column_id
+                              AND C1.object_id = T1.object_id
+                          INNER JOIN sys.tables   AS T2
+                              ON T2.object_id  = FKC.parent_object_id
+                          INNER JOIN sys.schemas  AS S2
+                              ON T2.schema_id  = S2.schema_id
+                          INNER JOIN sys.columns  AS C2
+                              ON C2.column_id  = FKC.referenced_column_id
+                              AND C2.object_id = T2.object_id
+                      WHERE
+                          FKC.referenced_object_id   = @table_object_id
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowUpdatePersonColumnName) > 1
+                                                                 THEN @RowUpdatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowUpdatePersonInclude = 1
+                      )
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowCreatePersonColumnName) > 1
+                                                                 THEN @RowCreatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowCreatePersonInclude = 1
+                      )
+                      AND C1.name                    = C2.name
+                      UNION ALL
+                      /* Perform the recursive query  */
+                      SELECT
+                          parent_object_id          = FKC.parent_object_id
+                         ,parent_schema             = S1.name
+                         ,parent_table              = T1.name
+                         ,parent_column             = C1.name
+                         ,parent_column_is_nullable = 1
+                         ,referenced_object_id      = FKC.referenced_object_id
+                         ,referenced_schema         = S2.name
+                         ,referenced_table          = T2.name
+                         ,referenced_column         = C2.name
+                         ,Depth                     = MR.Depth + 1
+                         ,HierarchyPath             = MR.HierarchyPath + '->' + CAST(FKC.parent_object_id AS varchar(MAX))
+                      FROM
+                          sys.foreign_key_columns         AS FKC
+                          INNER JOIN sys.objects          AS O
+                              ON O.object_id          = FKC.constraint_object_id
+                          INNER JOIN sys.tables           AS T1
+                              ON T1.object_id         = FKC.parent_object_id
+                          INNER JOIN sys.schemas          AS S1
+                              ON T1.schema_id         = S1.schema_id
+                          INNER JOIN sys.columns          AS C1
                               ON C1.column_id         = FKC.parent_column_id
                               AND C1.object_id        = T1.object_id
-                          INNER JOIN sys.tables   AS T2
+                          INNER JOIN sys.tables           AS T2
                               ON T2.object_id         = FKC.referenced_object_id
-                          INNER JOIN sys.schemas  AS S2
+                          INNER JOIN sys.schemas          AS S2
                               ON T2.schema_id         = S2.schema_id
-                          INNER JOIN sys.columns  AS C2
+                          INNER JOIN sys.columns          AS C2
                               ON C2.column_id         = FKC.referenced_column_id
                               AND C2.object_id        = T2.object_id
-                          INNER JOIN Anchor       AS A
-                              ON FKC.parent_object_id = A.referenced_object_id
+                          INNER JOIN InheratanceRecursive AS MR
+                              ON FKC.parent_object_id = MR.referenced_object_id
                       WHERE
-                          FKC.parent_object_id <> FKC.referenced_object_id
-                      AND A.HierarchyPath NOT LIKE '%->' + CAST(FKC.parent_object_id AS varchar(MAX)) + '->%'
-                      AND C1.name              <> 'RowUpdatePersonId'
+                          FKC.parent_object_id       <> FKC.referenced_object_id
+                      AND MR.HierarchyPath NOT LIKE '%->' + CAST(FKC.parent_object_id AS varchar(MAX)) + '->%'
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowUpdatePersonColumnName) > 1
+                                                                 THEN @RowUpdatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowUpdatePersonInclude = 1
+                      )
+                      AND (
+                          C1.name                    <> CASE WHEN LEN(@RowCreatePersonColumnName) > 1
+                                                                 THEN @RowCreatePersonColumnName
+                                                            ELSE N'[NOTUSED]'
+                                                        END
+                          OR @RowCreatePersonInclude = 1
+                      )
+                      AND FKC.parent_object_id       <> @table_object_id
+                      AND FKC.referenced_object_id   <> @table_object_id
                   )
-               ,AddBaseTable
+                INSERT INTO #TableList (
+                    parent_object_id
+                   ,parent_schema
+                   ,parent_table
+                   ,parent_column
+                   ,parent_column_is_nullable
+                   ,referenced_object_id
+                   ,referenced_schema
+                   ,referenced_table
+                   ,referenced_column
+                   ,Depth
+                   ,HierarchyPath
+                )
+                SELECT
+                    A.parent_object_id
+                   ,A.parent_schema
+                   ,A.parent_table
+                   ,A.parent_column
+                   ,A.parent_column_is_nullable
+                   ,A.referenced_object_id
+                   ,A.referenced_schema
+                   ,A.referenced_table
+                   ,A.referenced_column
+                   ,A.Depth
+                   ,A.HierarchyPath
+                FROM
+                    InheratanceRecursive AS A;
+
+                /* Perform Numbering */
+                WITH Numbering
                   AS (
                       SELECT
-                          parent_object_id          = NULL
-                         ,referenced_object_id      = T.object_id
-                         ,Depth                     = 0
-                         ,referenced_schema         = S.name
-                         ,referenced_table          = T.name
-                         ,referenced_column         = NULL
-                         ,parent_schema             = NULL
-                         ,parent_table              = NULL
-                         ,parent_column             = NULL
-                         ,parent_column_is_nullable = NULL
-                      FROM
-                          sys.tables             AS T
-                          INNER JOIN sys.schemas AS S
-                              ON T.schema_id = S.schema_id
-                      WHERE
-                          T.object_id = @table_object_id
-                      UNION ALL
-                      SELECT
-                          parent_object_id          = A.parent_object_id
-                         ,referenced_object_id      = A.referenced_object_id
-                         ,Depth                     = A.Depth
-                         ,referenced_schema         = A.referenced_schema
-                         ,referenced_table          = A.referenced_table
-                         ,referenced_column         = A.referenced_column
-                         ,parent_schema             = A.parent_schema
-                         ,parent_table              = A.parent_table
-                         ,parent_column             = A.parent_column
-                         ,parent_column_is_nullable = A.parent_column_is_nullable
-                      FROM
-                          Anchor AS A
-                  )
-               ,Numbering
-                  AS (
-                      SELECT
-                          parent_object_id          = ATB.parent_object_id
-                         ,referenced_object_id      = ATB.referenced_object_id
-                         ,Depth                     = ATB.Depth
-                         ,referenced_schema         = ATB.referenced_schema
-                         ,referenced_table          = ATB.referenced_table
+                          TableListId               = TL.TableListId
+                         ,parent_object_id          = TL.parent_object_id
+                         ,referenced_object_id      = TL.referenced_object_id
+                         ,Depth                     = TL.Depth
+                         ,referenced_schema         = TL.referenced_schema
+                         ,referenced_table          = TL.referenced_table
                          ,referenced_alias          = CAST(CASE WHEN LEN(R.referenced_table) > 0
                                                                     THEN R.referenced_table
-                                                               ELSE UPPER(LEFT(ATB.referenced_table, 1))
+                                                               ELSE UPPER(LEFT(TL.referenced_table, 1))
                                                            END + CASE WHEN CAST(ROW_NUMBER() OVER (PARTITION BY
                                                                                                        CASE WHEN LEN(R.referenced_table) > 0
                                                                                                                 THEN R.referenced_table
-                                                                                                           ELSE UPPER(LEFT(ATB.referenced_table, 1))
+                                                                                                           ELSE UPPER(LEFT(TL.referenced_table, 1))
                                                                                                        END
                                                                                                    ORDER BY
-                                                                                                       ATB.Depth ASC
+                                                                                                       TL.Depth ASC
                                                                                              ) AS nvarchar(MAX)) = 1
                                                                           THEN CAST(N'' AS nvarchar(MAX))
                                                                      ELSE CAST(ROW_NUMBER() OVER (PARTITION BY
                                                                                                       CASE WHEN LEN(R.referenced_table) > 0
                                                                                                                THEN R.referenced_table
-                                                                                                          ELSE UPPER(LEFT(ATB.referenced_table, 1))
+                                                                                                          ELSE UPPER(LEFT(TL.referenced_table, 1))
                                                                                                       END
                                                                                                   ORDER BY
-                                                                                                      ATB.Depth ASC
+                                                                                                      TL.Depth ASC
                                                                                             ) - 1 AS nvarchar(MAX))
                                                                  END AS nvarchar(MAX))
-                         ,referenced_column         = ATB.referenced_column
-                         ,parent_schema             = ATB.parent_schema
-                         ,parent_table              = ATB.parent_table
-                         ,parent_column             = ATB.parent_column
-                         ,parent_column_is_nullable = ATB.parent_column_is_nullable
+                         ,referenced_column         = TL.referenced_column
+                         ,parent_schema             = TL.parent_schema
+                         ,parent_table              = TL.parent_table
+                         ,parent_column             = TL.parent_column
+                         ,parent_column_is_nullable = TL.parent_column_is_nullable
+                         ,HierarchyPath             = TL.HierarchyPath
                       FROM
-                        -- SQL Prompt formatting off
-                        AddBaseTable AS ATB 
-                        CROSS APPLY (SELECT REPLACE(ATB.referenced_table COLLATE Latin1_General_BIN, 'a', N'')  AS referenced_table) AS R1 /* TRANSLATE() would work with one line but is only supported in 2017+ */
-                        CROSS APPLY (SELECT REPLACE(R1.referenced_table  COLLATE Latin1_General_BIN, 'b', N'')  AS referenced_table) AS R2
-                        CROSS APPLY (SELECT REPLACE(R2.referenced_table  COLLATE Latin1_General_BIN, 'c', N'')  AS referenced_table) AS R3
-                        CROSS APPLY (SELECT REPLACE(R3.referenced_table  COLLATE Latin1_General_BIN, 'd', N'')  AS referenced_table) AS R4
-                        CROSS APPLY (SELECT REPLACE(R4.referenced_table  COLLATE Latin1_General_BIN, 'e', N'')  AS referenced_table) AS R5
-                        CROSS APPLY (SELECT REPLACE(R5.referenced_table  COLLATE Latin1_General_BIN, 'f', N'')  AS referenced_table) AS R6
-                        CROSS APPLY (SELECT REPLACE(R6.referenced_table  COLLATE Latin1_General_BIN, 'g', N'')  AS referenced_table) AS R7
-                        CROSS APPLY (SELECT REPLACE(R7.referenced_table  COLLATE Latin1_General_BIN, 'h', N'')  AS referenced_table) AS R8
-                        CROSS APPLY (SELECT REPLACE(R8.referenced_table  COLLATE Latin1_General_BIN, 'i', N'')  AS referenced_table) AS R9
-                        CROSS APPLY (SELECT REPLACE(R9.referenced_table  COLLATE Latin1_General_BIN, 'j', N'')  AS referenced_table) AS R10
-                        CROSS APPLY (SELECT REPLACE(R10.referenced_table COLLATE Latin1_General_BIN, 'k', N'')  AS referenced_table) AS R11
-                        CROSS APPLY (SELECT REPLACE(R11.referenced_table COLLATE Latin1_General_BIN, 'l', N'')  AS referenced_table) AS R12
-                        CROSS APPLY (SELECT REPLACE(R12.referenced_table COLLATE Latin1_General_BIN, 'm', N'')  AS referenced_table) AS R13
-                        CROSS APPLY (SELECT REPLACE(R13.referenced_table COLLATE Latin1_General_BIN, 'n', N'')  AS referenced_table) AS R14
-                        CROSS APPLY (SELECT REPLACE(R14.referenced_table COLLATE Latin1_General_BIN, 'o', N'')  AS referenced_table) AS R15
-                        CROSS APPLY (SELECT REPLACE(R15.referenced_table COLLATE Latin1_General_BIN, 'p', N'')  AS referenced_table) AS R16
-                        CROSS APPLY (SELECT REPLACE(R16.referenced_table COLLATE Latin1_General_BIN, 'q', N'')  AS referenced_table) AS R17
-                        CROSS APPLY (SELECT REPLACE(R17.referenced_table COLLATE Latin1_General_BIN, 'r', N'')  AS referenced_table) AS R18
-                        CROSS APPLY (SELECT REPLACE(R18.referenced_table COLLATE Latin1_General_BIN, 's', N'')  AS referenced_table) AS R19
-                        CROSS APPLY (SELECT REPLACE(R19.referenced_table COLLATE Latin1_General_BIN, 't', N'')  AS referenced_table) AS R20
-                        CROSS APPLY (SELECT REPLACE(R20.referenced_table COLLATE Latin1_General_BIN, 'u', N'')  AS referenced_table) AS R21
-                        CROSS APPLY (SELECT REPLACE(R21.referenced_table COLLATE Latin1_General_BIN, 'v', N'')  AS referenced_table) AS R22
-                        CROSS APPLY (SELECT REPLACE(R22.referenced_table COLLATE Latin1_General_BIN, 'w', N'')  AS referenced_table) AS R23
-                        CROSS APPLY (SELECT REPLACE(R23.referenced_table COLLATE Latin1_General_BIN, 'x', N'')  AS referenced_table) AS R24
-                        CROSS APPLY (SELECT REPLACE(R24.referenced_table COLLATE Latin1_General_BIN, 'y', N'')  AS referenced_table) AS R25
-                        CROSS APPLY (SELECT REPLACE(R25.referenced_table COLLATE Latin1_General_BIN, 'z', N'')  AS referenced_table) AS R26
-                        CROSS APPLY (SELECT REPLACE(R26.referenced_table COLLATE Latin1_General_BIN, '~', N'')  AS referenced_table) AS R27
-                        CROSS APPLY (SELECT REPLACE(R27.referenced_table COLLATE Latin1_General_BIN, '`', N'')  AS referenced_table) AS R28
-                        CROSS APPLY (SELECT REPLACE(R28.referenced_table COLLATE Latin1_General_BIN, '!', N'')  AS referenced_table) AS R29
-                        CROSS APPLY (SELECT REPLACE(R29.referenced_table COLLATE Latin1_General_BIN, '@', N'')  AS referenced_table) AS R30
-                        CROSS APPLY (SELECT REPLACE(R30.referenced_table COLLATE Latin1_General_BIN, '#', N'')  AS referenced_table) AS R31
-                        CROSS APPLY (SELECT REPLACE(R31.referenced_table COLLATE Latin1_General_BIN, '$', N'')  AS referenced_table) AS R32
-                        CROSS APPLY (SELECT REPLACE(R32.referenced_table COLLATE Latin1_General_BIN, '%', N'')  AS referenced_table) AS R33
-                        CROSS APPLY (SELECT REPLACE(R33.referenced_table COLLATE Latin1_General_BIN, '^', N'')  AS referenced_table) AS R34
-                        CROSS APPLY (SELECT REPLACE(R34.referenced_table COLLATE Latin1_General_BIN, '&', N'')  AS referenced_table) AS R35
-                        CROSS APPLY (SELECT REPLACE(R35.referenced_table COLLATE Latin1_General_BIN, '*', N'')  AS referenced_table) AS R36
-                        CROSS APPLY (SELECT REPLACE(R36.referenced_table COLLATE Latin1_General_BIN, '(', N'')  AS referenced_table) AS R37
-                        CROSS APPLY (SELECT REPLACE(R37.referenced_table COLLATE Latin1_General_BIN, ')', N'')  AS referenced_table) AS R38
-                        CROSS APPLY (SELECT REPLACE(R38.referenced_table COLLATE Latin1_General_BIN, '-', N'')  AS referenced_table) AS R39
-                        CROSS APPLY (SELECT REPLACE(R39.referenced_table COLLATE Latin1_General_BIN, '_', N'')  AS referenced_table) AS R40
-                        CROSS APPLY (SELECT REPLACE(R40.referenced_table COLLATE Latin1_General_BIN, '=', N'')  AS referenced_table) AS R41
-                        CROSS APPLY (SELECT REPLACE(R41.referenced_table COLLATE Latin1_General_BIN, '+', N'')  AS referenced_table) AS R42
-                        CROSS APPLY (SELECT REPLACE(R42.referenced_table COLLATE Latin1_General_BIN, '[', N'')  AS referenced_table) AS R43
-                        CROSS APPLY (SELECT REPLACE(R43.referenced_table COLLATE Latin1_General_BIN, '{', N'')  AS referenced_table) AS R44
-                        CROSS APPLY (SELECT REPLACE(R44.referenced_table COLLATE Latin1_General_BIN, ']', N'')  AS referenced_table) AS R45
-                        CROSS APPLY (SELECT REPLACE(R45.referenced_table COLLATE Latin1_General_BIN, '}', N'')  AS referenced_table) AS R46
-                        CROSS APPLY (SELECT REPLACE(R46.referenced_table COLLATE Latin1_General_BIN, '\', N'')  AS referenced_table) AS R47
-                        CROSS APPLY (SELECT REPLACE(R47.referenced_table COLLATE Latin1_General_BIN, '|', N'')  AS referenced_table) AS R48
-                        CROSS APPLY (SELECT REPLACE(R48.referenced_table COLLATE Latin1_General_BIN, ':', N'')  AS referenced_table) AS R49
-                        CROSS APPLY (SELECT REPLACE(R49.referenced_table COLLATE Latin1_General_BIN, ';', N'')  AS referenced_table) AS R50
-                        CROSS APPLY (SELECT REPLACE(R50.referenced_table COLLATE Latin1_General_BIN, '"', N'')  AS referenced_table) AS R51
-                        CROSS APPLY (SELECT REPLACE(R51.referenced_table COLLATE Latin1_General_BIN, '/', N'')  AS referenced_table) AS R52
-                        CROSS APPLY (SELECT REPLACE(R52.referenced_table COLLATE Latin1_General_BIN, '?', N'')  AS referenced_table) AS R53
-                        CROSS APPLY (SELECT REPLACE(R53.referenced_table COLLATE Latin1_General_BIN, '.', N'')  AS referenced_table) AS R54
-                        CROSS APPLY (SELECT REPLACE(R54.referenced_table COLLATE Latin1_General_BIN, ',', N'')  AS referenced_table) AS R55
-                        CROSS APPLY (SELECT REPLACE(R55.referenced_table COLLATE Latin1_General_BIN, '>', N'')  AS referenced_table) AS R56
-                        CROSS APPLY (SELECT REPLACE(R56.referenced_table COLLATE Latin1_General_BIN, '<', N'')  AS referenced_table) AS R57
-                        CROSS APPLY (SELECT REPLACE(R57.referenced_table COLLATE Latin1_General_BIN, ' ', N'')  AS referenced_table) AS R58
-                        CROSS APPLY (SELECT REPLACE(R58.referenced_table COLLATE Latin1_General_BIN, '''', N'') AS referenced_table) AS R 
-                        -- SQL Prompt formatting on
+                         -- SQL Prompt formatting off
+                         #TableList  AS TL 
+                         CROSS APPLY (SELECT REPLACE(TL.referenced_table COLLATE Latin1_General_BIN, 'a', N'')  AS referenced_table) AS R1 /* TRANSLATE() would work with one line but is only supported in 2017+ */
+                         CROSS APPLY (SELECT REPLACE(R1.referenced_table  COLLATE Latin1_General_BIN, 'b', N'')  AS referenced_table) AS R2
+                         CROSS APPLY (SELECT REPLACE(R2.referenced_table  COLLATE Latin1_General_BIN, 'c', N'')  AS referenced_table) AS R3
+                         CROSS APPLY (SELECT REPLACE(R3.referenced_table  COLLATE Latin1_General_BIN, 'd', N'')  AS referenced_table) AS R4
+                         CROSS APPLY (SELECT REPLACE(R4.referenced_table  COLLATE Latin1_General_BIN, 'e', N'')  AS referenced_table) AS R5
+                         CROSS APPLY (SELECT REPLACE(R5.referenced_table  COLLATE Latin1_General_BIN, 'f', N'')  AS referenced_table) AS R6
+                         CROSS APPLY (SELECT REPLACE(R6.referenced_table  COLLATE Latin1_General_BIN, 'g', N'')  AS referenced_table) AS R7
+                         CROSS APPLY (SELECT REPLACE(R7.referenced_table  COLLATE Latin1_General_BIN, 'h', N'')  AS referenced_table) AS R8
+                         CROSS APPLY (SELECT REPLACE(R8.referenced_table  COLLATE Latin1_General_BIN, 'i', N'')  AS referenced_table) AS R9
+                         CROSS APPLY (SELECT REPLACE(R9.referenced_table  COLLATE Latin1_General_BIN, 'j', N'')  AS referenced_table) AS R10
+                         CROSS APPLY (SELECT REPLACE(R10.referenced_table COLLATE Latin1_General_BIN, 'k', N'')  AS referenced_table) AS R11
+                         CROSS APPLY (SELECT REPLACE(R11.referenced_table COLLATE Latin1_General_BIN, 'l', N'')  AS referenced_table) AS R12
+                         CROSS APPLY (SELECT REPLACE(R12.referenced_table COLLATE Latin1_General_BIN, 'm', N'')  AS referenced_table) AS R13
+                         CROSS APPLY (SELECT REPLACE(R13.referenced_table COLLATE Latin1_General_BIN, 'n', N'')  AS referenced_table) AS R14
+                         CROSS APPLY (SELECT REPLACE(R14.referenced_table COLLATE Latin1_General_BIN, 'o', N'')  AS referenced_table) AS R15
+                         CROSS APPLY (SELECT REPLACE(R15.referenced_table COLLATE Latin1_General_BIN, 'p', N'')  AS referenced_table) AS R16
+                         CROSS APPLY (SELECT REPLACE(R16.referenced_table COLLATE Latin1_General_BIN, 'q', N'')  AS referenced_table) AS R17
+                         CROSS APPLY (SELECT REPLACE(R17.referenced_table COLLATE Latin1_General_BIN, 'r', N'')  AS referenced_table) AS R18
+                         CROSS APPLY (SELECT REPLACE(R18.referenced_table COLLATE Latin1_General_BIN, 's', N'')  AS referenced_table) AS R19
+                         CROSS APPLY (SELECT REPLACE(R19.referenced_table COLLATE Latin1_General_BIN, 't', N'')  AS referenced_table) AS R20
+                         CROSS APPLY (SELECT REPLACE(R20.referenced_table COLLATE Latin1_General_BIN, 'u', N'')  AS referenced_table) AS R21
+                         CROSS APPLY (SELECT REPLACE(R21.referenced_table COLLATE Latin1_General_BIN, 'v', N'')  AS referenced_table) AS R22
+                         CROSS APPLY (SELECT REPLACE(R22.referenced_table COLLATE Latin1_General_BIN, 'w', N'')  AS referenced_table) AS R23
+                         CROSS APPLY (SELECT REPLACE(R23.referenced_table COLLATE Latin1_General_BIN, 'x', N'')  AS referenced_table) AS R24
+                         CROSS APPLY (SELECT REPLACE(R24.referenced_table COLLATE Latin1_General_BIN, 'y', N'')  AS referenced_table) AS R25
+                         CROSS APPLY (SELECT REPLACE(R25.referenced_table COLLATE Latin1_General_BIN, 'z', N'')  AS referenced_table) AS R26
+                         CROSS APPLY (SELECT REPLACE(R26.referenced_table COLLATE Latin1_General_BIN, '~', N'')  AS referenced_table) AS R27
+                         CROSS APPLY (SELECT REPLACE(R27.referenced_table COLLATE Latin1_General_BIN, '`', N'')  AS referenced_table) AS R28
+                         CROSS APPLY (SELECT REPLACE(R28.referenced_table COLLATE Latin1_General_BIN, '!', N'')  AS referenced_table) AS R29
+                         CROSS APPLY (SELECT REPLACE(R29.referenced_table COLLATE Latin1_General_BIN, '@', N'')  AS referenced_table) AS R30
+                         CROSS APPLY (SELECT REPLACE(R30.referenced_table COLLATE Latin1_General_BIN, '#', N'')  AS referenced_table) AS R31
+                         CROSS APPLY (SELECT REPLACE(R31.referenced_table COLLATE Latin1_General_BIN, '$', N'')  AS referenced_table) AS R32
+                         CROSS APPLY (SELECT REPLACE(R32.referenced_table COLLATE Latin1_General_BIN, '%', N'')  AS referenced_table) AS R33
+                         CROSS APPLY (SELECT REPLACE(R33.referenced_table COLLATE Latin1_General_BIN, '^', N'')  AS referenced_table) AS R34
+                         CROSS APPLY (SELECT REPLACE(R34.referenced_table COLLATE Latin1_General_BIN, '&', N'')  AS referenced_table) AS R35
+                         CROSS APPLY (SELECT REPLACE(R35.referenced_table COLLATE Latin1_General_BIN, '*', N'')  AS referenced_table) AS R36
+                         CROSS APPLY (SELECT REPLACE(R36.referenced_table COLLATE Latin1_General_BIN, '(', N'')  AS referenced_table) AS R37
+                         CROSS APPLY (SELECT REPLACE(R37.referenced_table COLLATE Latin1_General_BIN, ')', N'')  AS referenced_table) AS R38
+                         CROSS APPLY (SELECT REPLACE(R38.referenced_table COLLATE Latin1_General_BIN, '-', N'')  AS referenced_table) AS R39
+                         CROSS APPLY (SELECT REPLACE(R39.referenced_table COLLATE Latin1_General_BIN, '_', N'')  AS referenced_table) AS R40
+                         CROSS APPLY (SELECT REPLACE(R40.referenced_table COLLATE Latin1_General_BIN, '=', N'')  AS referenced_table) AS R41
+                         CROSS APPLY (SELECT REPLACE(R41.referenced_table COLLATE Latin1_General_BIN, '+', N'')  AS referenced_table) AS R42
+                         CROSS APPLY (SELECT REPLACE(R42.referenced_table COLLATE Latin1_General_BIN, '[', N'')  AS referenced_table) AS R43
+                         CROSS APPLY (SELECT REPLACE(R43.referenced_table COLLATE Latin1_General_BIN, '{', N'')  AS referenced_table) AS R44
+                         CROSS APPLY (SELECT REPLACE(R44.referenced_table COLLATE Latin1_General_BIN, ']', N'')  AS referenced_table) AS R45
+                         CROSS APPLY (SELECT REPLACE(R45.referenced_table COLLATE Latin1_General_BIN, '}', N'')  AS referenced_table) AS R46
+                         CROSS APPLY (SELECT REPLACE(R46.referenced_table COLLATE Latin1_General_BIN, '\', N'')  AS referenced_table) AS R47
+                         CROSS APPLY (SELECT REPLACE(R47.referenced_table COLLATE Latin1_General_BIN, '|', N'')  AS referenced_table) AS R48
+                         CROSS APPLY (SELECT REPLACE(R48.referenced_table COLLATE Latin1_General_BIN, ':', N'')  AS referenced_table) AS R49
+                         CROSS APPLY (SELECT REPLACE(R49.referenced_table COLLATE Latin1_General_BIN, ';', N'')  AS referenced_table) AS R50
+                         CROSS APPLY (SELECT REPLACE(R50.referenced_table COLLATE Latin1_General_BIN, '"', N'')  AS referenced_table) AS R51
+                         CROSS APPLY (SELECT REPLACE(R51.referenced_table COLLATE Latin1_General_BIN, '/', N'')  AS referenced_table) AS R52
+                         CROSS APPLY (SELECT REPLACE(R52.referenced_table COLLATE Latin1_General_BIN, '?', N'')  AS referenced_table) AS R53
+                         CROSS APPLY (SELECT REPLACE(R53.referenced_table COLLATE Latin1_General_BIN, '.', N'')  AS referenced_table) AS R54
+                         CROSS APPLY (SELECT REPLACE(R54.referenced_table COLLATE Latin1_General_BIN, ',', N'')  AS referenced_table) AS R55
+                         CROSS APPLY (SELECT REPLACE(R55.referenced_table COLLATE Latin1_General_BIN, '>', N'')  AS referenced_table) AS R56
+                         CROSS APPLY (SELECT REPLACE(R56.referenced_table COLLATE Latin1_General_BIN, '<', N'')  AS referenced_table) AS R57
+                         CROSS APPLY (SELECT REPLACE(R57.referenced_table COLLATE Latin1_General_BIN, ' ', N'')  AS referenced_table) AS R58
+                         CROSS APPLY (SELECT REPLACE(R58.referenced_table COLLATE Latin1_General_BIN, '''', N'') AS referenced_table) AS R 
+                         -- SQL Prompt formatting on
                   )
-                INSERT INTO #TableList (
-                    Depth
-                   ,parent_object_id
-                   ,referenced_object_id
-                   ,referenced_schema
-                   ,referenced_table
-                   ,referenced_table_description
-                   ,referenced_alias
-                   ,referenced_column
-                   ,parent_schema
-                   ,parent_table
-                   ,parent_alias
-                   ,parent_column
-                   ,parent_column_is_nullable
-                   ,HasTriggersFlag
-                   ,IsProcessedFlag
-                )
-                SELECT
-                    Depth                        = N.Depth
-                   ,parent_object_id             = N.parent_object_id
-                   ,referenced_object_id         = N.referenced_object_id
-                   ,referenced_schema            = N.referenced_schema
-                   ,referenced_table             = N.referenced_table
-                   ,referenced_table_description = ISNULL(REPLACE(CAST(EP.value AS nvarchar(MAX)), N'''', N''''''), N'')
-                   ,referenced_alias             = N.referenced_alias
-                   ,referenced_column            = N.referenced_column
-                   ,parent_schema                = N.parent_schema
-                   ,parent_table                 = N.parent_table
-                   ,parent_alias                 = (
+                UPDATE
+                    TL_T
+                SET
+                    TL_T.parent_object_id = TL_S.parent_object_id
+                   ,TL_T.referenced_object_id = TL_S.referenced_object_id
+                   ,TL_T.Depth = TL_S.Depth
+                   ,TL_T.referenced_schema = TL_S.referenced_schema
+                   ,TL_T.referenced_table = TL_S.referenced_table
+                   ,TL_T.referenced_alias = TL_S.referenced_alias
+                   ,TL_T.referenced_column = TL_S.referenced_column
+                   ,TL_T.parent_schema = TL_S.parent_schema
+                   ,TL_T.parent_table = TL_S.parent_table
+                   ,TL_T.parent_column = TL_S.parent_column
+                   ,TL_T.parent_column_is_nullable = TL_S.parent_column_is_nullable
+                   ,TL_T.HierarchyPath = TL_S.HierarchyPath
+                   ,TL_T.referenced_table_description = ISNULL(REPLACE(CAST(EP.value AS nvarchar(MAX)), N'''', N''''''), N'')
+                   ,TL_T.parent_alias = (
                         SELECT TOP (1)
-                            T1.referenced_alias
+                            TL_S.referenced_alias
                         FROM
-                            Numbering AS T1
+                            Numbering AS TL_S
                         WHERE
-                            N.parent_object_id = T1.referenced_object_id
-                        AND N.Depth            >= T1.Depth
+                            TL_T.parent_object_id = TL_S.referenced_object_id
+                        AND TL_T.Depth            >= TL_S.Depth
                         ORDER BY
-                            T1.referenced_alias ASC
+                            TL_S.referenced_alias ASC
                     )
-                   ,parent_column                = N.parent_column
-                   ,parent_column_is_nullable    = N.parent_column_is_nullable
-                   ,HasTriggersFlag              = CASE WHEN EXISTS (SELECT * FROM sys.triggers AS TG WHERE TG.parent_id = N.referenced_object_id)
-                                                            THEN 1
-                                                       ELSE 0
-                                                   END
-                   ,IsProcessedFlag              = 0
+                   ,TL_T.HasTriggersFlag = CASE WHEN EXISTS (
+                                                         SELECT
+                                                             *
+                                                         FROM
+                                                             sys.triggers AS TG
+                                                         WHERE
+                                                             TG.parent_id = TL_S.referenced_object_id
+                                                     )
+                                                    THEN 1
+                                               ELSE 0
+                                           END
+                   ,TL_T.IsProcessedFlag = 0
                 FROM
-                    Numbering                               AS N
+                    #TableList                              AS TL_T
+                    INNER JOIN Numbering                    AS TL_S
+                        ON TL_T.TableListId          = TL_S.TableListId
                     LEFT OUTER JOIN sys.extended_properties AS EP
-                        ON N.referenced_object_id = EP.major_id
-                        AND EP.minor_id           = 0
-                        AND EP.class              = 1
-                        AND EP.name               = 'MS_Description'
-                ORDER BY
-                    N.Depth ASC
-                OPTION (RECOMPILE);
+                        ON TL_S.referenced_object_id = EP.major_id
+                        AND EP.minor_id              = 0
+                        AND EP.class                 = 1
+                        AND EP.name                  = 'MS_Description';
+
+
+                /* Update table list with temporal table */
+                UPDATE 
+                    TL
+                SET
+                    TL.IsTemporalFlag = 1
+                FROM 
+                    #TableList AS TL
+                    INNER JOIN sys.tables AS T
+                        ON tl.referenced_object_id = T.object_id
+                WHERE 
+                    T.temporal_type = 2;
+
+                /* Forces the view to allow temporal functionality */
+                IF @ForceTemporalForView = 1
+                    BEGIN
+                        UPDATE 
+                            #TableList
+                        SET
+                            IsTemporalFlag = 1
+                        WHERE
+                            Depth = 0;                           
+                    END;
+
+
 
 
                 /**********************************************************************************************************************
@@ -758,6 +1201,8 @@ AS
                    ,Is_Nullable        nvarchar(MAX) NOT NULL
                    ,IsProcessedFlag    bit           NOT NULL
                 );
+
+                /* Insert column list for tables */
                 INSERT INTO #ColumnList (
                     schema_id
                    ,Depth
@@ -883,6 +1328,132 @@ AS
                    ,C.column_id ASC
                 OPTION (RECOMPILE);
 
+                /* Insert column list for view */
+                INSERT INTO #ColumnList (
+                    schema_id
+                   ,Depth
+                   ,Table_object_id
+                   ,SchemaName
+                   ,TableName
+                   ,TableAlias
+                   ,column_object_id
+                   ,column_id
+                   ,ColumnName
+                   ,ColumnNameCleaned
+                   ,ColumnDescription
+                   ,IsPrimaryKeyFlag
+                   ,IsIdentityFlag
+                   ,IsComputedFlag
+                   ,IsReferencedColumn
+                   ,user_type_id
+                   ,TypeName
+                   ,TypeLength
+                   ,Is_Nullable
+                   ,IsProcessedFlag
+                )
+                SELECT
+                    schema_id          = S.schema_id
+                   ,Depth              = TL.Depth
+                   ,Table_object_id    = C.object_id
+                   ,SchemaName         = S.name
+                   ,TableName          = T.name
+                   ,TableAlias         = TL.referenced_alias
+                   ,column_object_id   = C.object_id
+                   ,column_id          = C.column_id
+                   ,ColumnName         = C.name
+                   ,ColumnNameCleaned  = REPLACE(C.name, N' ', N'')
+                   ,ColumnDescription  = ISNULL(REPLACE(CAST(EP.value AS nvarchar(MAX)), N'''', N''''''), N'')
+                   ,IsPrimaryKeyFlag   = CASE WHEN PK.object_id IS NOT NULL THEN 1 ELSE 0 END
+                   ,IsIdentityFlag     = C.is_identity
+                   ,IsComputedFlag     = C.is_computed
+                   ,IsReferencedColumn = CASE WHEN EXISTS (
+                                                       SELECT
+                                                           *
+                                                       FROM
+                                                           #TableList AS TLSub
+                                                       WHERE
+                                                           TLSub.referenced_schema = S.name
+                                                       AND TLSub.referenced_table  = T.name
+                                                       AND TLSub.parent_column     = C.name
+                                                   )
+                                                  THEN 1
+                                             ELSE 0
+                                         END
+                   ,user_type_id       = C.user_type_id
+                   ,TypeName           = CASE WHEN TP.name = 'timestamp' THEN 'rowversion' ELSE TP.name END
+                   ,TypeLength         =
+                   /* decimal, numeric */
+                   CASE WHEN C.user_type_id IN (106, 108)
+                            THEN CAST(N'(' AS nvarchar(MAX)) + CAST(C.precision AS varchar(3)) + CAST(N', ' AS nvarchar(MAX)) + CAST(C.scale AS varchar(3)) + CAST(N')' AS nvarchar(MAX))
+                       ELSE CAST(N'' AS nvarchar(MAX))
+                   END +
+                   /* datetime2, datetimeoffset, time */
+                   CASE WHEN C.user_type_id IN (41, 42, 43)
+                            THEN CAST(N'(' AS nvarchar(MAX)) + CAST(C.scale AS varchar(3)) + CAST(N')' AS nvarchar(MAX))
+                       ELSE CAST(N'' AS nvarchar(MAX))
+                   END +
+                   /* varbinary, binary, varchar, char */
+                   CASE WHEN C.user_type_id IN (165, 167, 173, 175)
+                            THEN CAST(N'(' AS nvarchar(MAX)) + CASE WHEN C.max_length = -1
+                                                                        THEN CAST(N'MAX' AS nvarchar(MAX))
+                                                                   ELSE CAST(C.max_length AS varchar(4))
+                                                               END + CAST(N')' AS nvarchar(MAX))
+                       ELSE CAST(N'' AS nvarchar(MAX))
+                   END +
+                   /* nvarchar, nchar */
+                   CASE WHEN C.user_type_id IN (231, 239)
+                            THEN CAST(N'(' AS nvarchar(MAX)) + CASE WHEN C.max_length = -1
+                                                                        THEN CAST(N'MAX' AS nvarchar(MAX))
+                                                                   ELSE CAST(C.max_length / 2 AS varchar(4))
+                                                               END + CAST(N')' AS nvarchar(MAX))
+                       ELSE CAST(N'' AS nvarchar(MAX))
+                   END
+                   ,Is_Nullable        = CAST(CASE WHEN C.is_nullable = 1
+                                                       THEN CAST(N'NULL' AS nvarchar(MAX))
+                                                  ELSE CAST(N'NOT NULL' AS nvarchar(MAX))
+                                              END AS nvarchar(MAX))
+                   ,IsProcessedFlag    = 0
+                FROM
+                    sys.columns                             AS C
+                    INNER JOIN sys.views                    AS T
+                        ON C.object_id     = T.object_id
+                    INNER JOIN sys.schemas                  AS S
+                        ON T.schema_id     = S.schema_id
+                    INNER JOIN sys.objects                  AS SO
+                        ON SO.object_id    = C.object_id
+                    INNER JOIN sys.types                    AS TP
+                        ON TP.user_type_id = C.user_type_id
+                    INNER JOIN #TableList                   AS TL
+                        ON C.object_id     = TL.referenced_object_id
+                    LEFT OUTER JOIN sys.extended_properties AS EP
+                        ON C.object_id     = EP.major_id
+                        AND C.column_id    = EP.minor_id
+                        AND EP.class       = 1
+                        AND EP.name        = 'MS_Description'
+                    LEFT OUTER JOIN (
+                        SELECT
+                            C.object_id
+                           ,C.column_id
+                        FROM
+                            sys.indexes                  AS I
+                            INNER JOIN sys.index_columns AS IC
+                                ON I.object_id  = IC.object_id
+                                AND I.index_id  = IC.index_id
+                            INNER JOIN sys.columns       AS C
+                                ON IC.object_id = C.object_id
+                                AND C.column_id = IC.column_id
+                        WHERE
+                            I.is_primary_key = 1
+                    )                                       AS PK
+                        ON C.object_id     = PK.object_id
+                        AND C.column_id    = PK.column_id
+                WHERE
+                    SO.type = 'V'
+                ORDER BY
+                    TL.TableListId ASC
+                   ,C.column_id ASC
+                OPTION (RECOMPILE);
+
                 /* Find duplicate column names and add the table alias */
                 UPDATE
                     #ColumnList
@@ -921,14 +1492,42 @@ AS
                 IF @ProcedureType IN (N'Create', N'CreateMultiple', N'Update', N'UpdateMultiple', N'Upsert', N'Indate')
                     BEGIN
                         SELECT
+                            @TemporaryTableOutputStringColumnType = @TemporaryTableOutputStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + REPLACE(CL.TypeName, 'rowversion', 'nvarchar(20)') + CL.TypeLength + N' NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                                                       THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                  ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                              END
+                           ,@TemporaryTableOutputStringType       = @TemporaryTableOutputStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                          END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth = 0
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@TemporaryTableOutputStringColumnType) > 0
+                            BEGIN
+                                SET @TemporaryTableOutputStringColumnType = RIGHT(@TemporaryTableOutputStringColumnType, LEN(@TemporaryTableOutputStringColumnType) - 20);
+                            END;
+
+                        IF LEN(@TemporaryTableOutputStringType) > 0
+                            BEGIN
+                                SET @TemporaryTableOutputStringType = RIGHT(@TemporaryTableOutputStringType, LEN(@TemporaryTableOutputStringType) - 20);
+                            END;
+
+                    END;
+
+
+                IF @ProcedureType IN (N'Create', N'CreateMultiple', N'Update', N'Upsert', N'Indate')
+                    BEGIN
+                        SELECT
                             @TemporaryTableStringColumnType = @TemporaryTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + REPLACE(CL.TypeName, 'rowversion', 'nvarchar(20)') + CL.TypeLength + N' NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                                                                                                                                            THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                       ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                                                                                   END
-                           ,@OPENJSONWithString             = @OPENJSONWithString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                             THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                        ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                    END
                            ,@TemporaryTableStringType       = @TemporaryTableStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
                                                                                                                                                                        THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                   ELSE CAST(N'' AS nvarchar(MAX))
@@ -937,7 +1536,6 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.Depth = 0
-                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -947,9 +1545,37 @@ AS
                                 SET @TemporaryTableStringColumnType = RIGHT(@TemporaryTableStringColumnType, LEN(@TemporaryTableStringColumnType) - 20);
                             END;
 
-                        IF LEN(@OPENJSONWithString) > 0
+                        IF LEN(@TemporaryTableStringType) > 0
                             BEGIN
-                                SET @OPENJSONWithString = RIGHT(@OPENJSONWithString, LEN(@OPENJSONWithString) - 20);
+                                SET @TemporaryTableStringType = RIGHT(@TemporaryTableStringType, LEN(@TemporaryTableStringType) - 20);
+                            END;
+
+                    END;
+
+
+                IF @ProcedureType IN (N'UpdateMultiple')
+                    BEGIN
+                        SELECT
+                            @TemporaryTableStringColumnType = @TemporaryTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + REPLACE(CL.TypeName, 'rowversion', 'nvarchar(20)') + CL.TypeLength + N' NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                                           THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                      ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                  END
+                           ,@TemporaryTableStringType       = @TemporaryTableStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                       THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                  ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                              END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth = 0
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@TemporaryTableStringColumnType) > 0
+                            BEGIN
+                                SET @TemporaryTableStringColumnType = RIGHT(@TemporaryTableStringColumnType, LEN(@TemporaryTableStringColumnType) - 20);
                             END;
 
                         IF LEN(@TemporaryTableStringType) > 0
@@ -958,6 +1584,115 @@ AS
                             END;
 
                     END;
+
+
+                IF @ProcedureType IN (N'Update', N'Upsert', N'Indate')
+                    BEGIN
+                        SELECT
+                            @TemporaryJSONTableStringColumnType = @TemporaryJSONTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + REPLACE(CL.TypeName, 'rowversion', 'nvarchar(20)') + CL.TypeLength + N' NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                          END
+                           ,@TemporaryJSONTableStringType       = @TemporaryJSONTableStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                               THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                          ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                      END
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth = 0
+                        AND CL.ColumnName NOT IN (@TemporalRowStartColumName, @TemporalRowEndColumName)
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@TemporaryJSONTableStringColumnType) > 0
+                            BEGIN
+                                SET @TemporaryJSONTableStringColumnType = RIGHT(@TemporaryJSONTableStringColumnType, LEN(@TemporaryJSONTableStringColumnType) - 20);
+                            END;
+
+                        IF LEN(@TemporaryJSONTableStringType) > 0
+                            BEGIN
+                                SET @TemporaryJSONTableStringType = RIGHT(@TemporaryJSONTableStringType, LEN(@TemporaryJSONTableStringType) - 20);
+                            END;
+
+                    END;
+
+                IF @ProcedureType IN (N'Create', N'UpdateMultiple', N'CreateMultiple')
+                    BEGIN
+                        SELECT
+                            @TemporaryJSONTableStringColumnType = @TemporaryJSONTableStringColumnType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + REPLACE(CL.TypeName, 'rowversion', 'nvarchar(20)') + CL.TypeLength + N' NULL' + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                          END
+
+                           ,@TemporaryJSONTableStringType       = @TemporaryJSONTableStringType + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                               THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                          ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                      END
+
+
+                        FROM
+                            #ColumnList AS CL
+                        WHERE
+                            CL.Depth = 0
+                        AND CL.ColumnName NOT IN (@RowUpdatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
+                        ORDER BY
+                            CL.ColumnListId ASC;
+
+                        /* Fix the first item */
+                        IF LEN(@TemporaryJSONTableStringColumnType) > 0
+                            BEGIN
+                                SET @TemporaryJSONTableStringColumnType = RIGHT(@TemporaryJSONTableStringColumnType, LEN(@TemporaryJSONTableStringColumnType) - 20);
+                            END;
+
+                        IF LEN(@TemporaryJSONTableStringType) > 0
+                            BEGIN
+                                SET @TemporaryJSONTableStringType = RIGHT(@TemporaryJSONTableStringType, LEN(@TemporaryJSONTableStringType) - 20);
+                            END;
+
+                    END;
+
+
+                /* Build the OPENJSONWithCreateString */
+                SELECT
+                    @OPENJSONWithCreateString = @OPENJSONWithCreateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                     THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                            END
+                FROM
+                    #ColumnList AS CL
+                WHERE
+                    CL.Depth = 0
+                AND CL.ColumnName NOT IN (@RowUpdatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
+                ORDER BY
+                    CL.ColumnListId ASC;
+
+                IF LEN(@OPENJSONWithCreateString) > 0
+                    BEGIN
+                        SET @OPENJSONWithCreateString = RIGHT(@OPENJSONWithCreateString, LEN(@OPENJSONWithCreateString) - 20);
+                    END;
+
+
+                /* Build the OPENJSONWithUpdateString */
+                SELECT
+                    @OPENJSONWithUpdateString = @OPENJSONWithUpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CAST(N' ' AS nvarchar(MAX)) + CL.TypeName + CL.TypeLength + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                     THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                            END
+                FROM
+                    #ColumnList AS CL
+                WHERE
+                    CL.Depth = 0
+                AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
+                ORDER BY
+                    CL.ColumnListId ASC;
+
+                IF LEN(@OPENJSONWithUpdateString) > 0
+                    BEGIN
+                        SET @OPENJSONWithUpdateString = RIGHT(@OPENJSONWithUpdateString, LEN(@OPENJSONWithUpdateString) - 20);
+                    END;
+
 
                 IF @ProcedureType IN (N'Create', N'CreateMultiple', N'Update', N'UpdateMultiple', N'Upsert', N'Indate')
                     BEGIN
@@ -973,7 +1708,6 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.Depth = 0
-                        AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1010,6 +1744,7 @@ AS
                            ,@parent_column                = TL.parent_column
                            ,@parent_column_is_nullable    = TL.parent_column_is_nullable
                            ,@HasTriggersFlag              = TL.HasTriggersFlag
+                           ,@IsTemporalTableTableFlag     = TL.IsTemporalFlag
                         FROM
                             #TableList AS TL
                         WHERE
@@ -1021,7 +1756,7 @@ AS
                         /**********************************************************************************************************************
                         ** Build the TableListInsertValuesString variable
                         **********************************************************************************************************************/
-                        SET @TableListInsertValuesString = @TableListInsertValuesString + @NewLineString + '/*INDENT SPACES*/,(N''' + @referenced_schema + ''', N''' + @referenced_table + ''', N''' + @referenced_alias + ''')';
+                        SET @TableListInsertValuesString = @TableListInsertValuesString + @NewLineString + N'/*INDENT SPACES*/,(N''' + @referenced_schema + N''', N''' + @referenced_table + N''', N''' + @referenced_alias + N''')';
 
                         /**********************************************************************************************************************
                         ** Check if child table also needs to be a LEFT OUTER JOIN
@@ -1068,19 +1803,21 @@ AS
                         **********************************************************************************************************************/
                         IF @Depth = 0
                             BEGIN
-                                SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + N' AS ' + QUOTENAME(@referenced_alias) + N'/*[JOIN CONDITION]*/' + CASE WHEN LEN(@referenced_table_description) > 0
-                                                                                                                                                                                                       THEN N' /* ' + @referenced_table_description + N' */'
-                                                                                                                                                                                                  ELSE N''
-                                                                                                                                                                                              END;
+                                SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + CASE WHEN @IsTemporalTableTableFlag = 1 THEN N'/*[TEMPORAL TABLE CLAUSE]*/' ELSE N'' END
+
+                                                  + N' AS ' + QUOTENAME(@referenced_alias) + N'/*[JOIN CONDITION]*/' + CASE WHEN LEN(@referenced_table_description) > 0
+                                                                                                                                THEN N' /* ' + @referenced_table_description + N' */'
+                                                                                                                           ELSE N''
+                                                                                                                       END;
                             END;
                         ELSE IF @Depth > 0
-                                 BEGIN
-                                     SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + N' AS ' + QUOTENAME(@referenced_alias) + CASE WHEN LEN(@referenced_table_description) > 0
-                                                                                                                                                                                  THEN N' /* ' + @referenced_table_description + N' */'
-                                                                                                                                                                             ELSE N''
-                                                                                                                                                                         END;
-                                     SET @FromString = @FromString + @NewLineString + N'/*[ON SPACE]*/ON ' + QUOTENAME(@parent_alias) + N'.' + QUOTENAME(@parent_column) + N' = ' + QUOTENAME(@referenced_alias) + N'.' + QUOTENAME(@referenced_column);
-                                 END;
+                            BEGIN
+                                SET @FromString = @FromString + QUOTENAME(@referenced_schema) + N'.' + QUOTENAME(@referenced_table) + CASE WHEN @IsTemporalTableTableFlag = 1 THEN N'/*[TEMPORAL TABLE CLAUSE]*/' ELSE N'' END + N' AS ' + QUOTENAME(@referenced_alias) + CASE WHEN LEN(@referenced_table_description) > 0
+                                                                                                                                                                                                                                                                                   THEN N' /* ' + @referenced_table_description + N' */'
+                                                                                                                                                                                                                                                                              ELSE N''
+                                                                                                                                                                                                                                                                          END;
+                                SET @FromString = @FromString + @NewLineString + N'/*[ON SPACE]*/ON ' + QUOTENAME(@parent_alias) + N'.' + QUOTENAME(@parent_column) + N' = ' + QUOTENAME(@referenced_alias) + N'.' + QUOTENAME(@referenced_column);
+                            END;
 
 
                         /**********************************************************************************************************************
@@ -1132,7 +1869,7 @@ AS
                             CL.Depth          = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowUpdatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1157,7 +1894,7 @@ AS
                             CL.Depth          = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1171,17 +1908,53 @@ AS
                         ** Build the INSERT INTO VALUES clause
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                 END
+                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + CASE CL.ColumnName
+                                                                                                     WHEN @RowUpdatePersonColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,@' + @RowCreatePersonColumnName /* This puts the create user in the update user column */
+                                                                                                     WHEN @RowUpdateTimeColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,' + CASE @RowUpdateTimeFunction
+                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                      END
+                                                                                                     WHEN @RowCreateTimeColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,' + CASE @RowCreateTimeFunction
+                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                      END
+                                                                                                     ELSE N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                          END
+                                                                                                 END
                         FROM
                             #ColumnList AS CL
                         WHERE
                             CL.Depth          = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1220,20 +1993,20 @@ AS
 
         /* Create temporary table to store the output */
         CREATE TABLE #Output (
-             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+             '                                     + REPLACE(@TemporaryTableOutputStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
         );
 
         /* Perform the create (insert) */
         INSERT INTO '                              + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' (
-             '          AS nvarchar(MAX))          + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'            ') + N'
+                '       AS nvarchar(MAX))          + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'               ') + N'
         )
         OUTPUT
-             '                                     + REPLACE(REPLACE(@OutputString, 'Inserted.[RowVersionStamp]', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[RowVersionStamp]), 1)'), N'/*INDENT SPACES*/', N'            ') + N'
+                '                                  + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'               ') + N'
         INTO #Output (
-             '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
+                '                                  + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'               ') + N'
         )
         VALUES (
-             '                                     + REPLACE(@InsertIntoValuesString, N'/*INDENT SPACES*/', N'            ') + N'
+                '                                  + REPLACE(@InsertIntoValuesString, N'/*INDENT SPACES*/', N'               ') + N'
         );
 
         /* Select the inserted row from the output temporary table to return */
@@ -1264,17 +2037,58 @@ AS
                         ** Build the INSERT INTO clause 
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoString = @InsertIntoString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                        END
+                            @InsertIntoString       = @InsertIntoString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                       THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                  ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                              END
+                           ,@InsertIntoSelectString = @InsertIntoSelectString + @NewLineString + CASE CL.ColumnName
+                                                                                                     WHEN @RowUpdatePersonColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,' + QUOTENAME(@RowCreatePersonColumnName)
+                                                                                                     WHEN @RowUpdateTimeColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,' + CASE @RowUpdateTimeFunction
+                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                      END
+                                                                                                     WHEN @RowCreateTimeColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,' + CASE @RowCreateTimeFunction
+                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                      END
+                                                                                                     ELSE N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                      THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                 ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                             END
+                                                                                                 END
+
                         FROM
                             #ColumnList AS CL
                         WHERE
                             CL.Depth          = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1282,6 +2096,11 @@ AS
                         IF LEN(@InsertIntoString) > 0
                             BEGIN
                                 SET @InsertIntoString = RIGHT(@InsertIntoString, LEN(@InsertIntoString) - 20);
+                            END;
+
+                        IF LEN(@InsertIntoSelectString) > 0
+                            BEGIN
+                                SET @InsertIntoSelectString = RIGHT(@InsertIntoSelectString, LEN(@InsertIntoSelectString) - 20);
                             END;
 
                         /**********************************************************************************************************************
@@ -1298,7 +2117,7 @@ AS
                             CL.Depth          = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1338,7 +2157,7 @@ AS
 **                      ]
 **
 ** Notes:       It is possible to create a stored procedure to accept JSON that includes multiple objects that inserts
-                  into multiple tables.
+                  into multiple tables, just not with this generator tool.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName) + N'(
@@ -1352,39 +2171,39 @@ AS
             BEGIN
                 /* Create temporary table to store the output */
                 CREATE TABLE #Output (
-                     ' + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(@TemporaryTableOutputStringColumnType, N'/*INDENT SPACES*/', N'                    ') + N'
                 );
 
                 /* Create temporary table to store the JSON rows */
                 CREATE TABLE #JSON (
-                     ' + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(@TemporaryJSONTableStringColumnType, N'/*INDENT SPACES*/', N'                    ') + N'
                 );
 
                 /* Insert into temporary table to store the JSON rows */
                 INSERT INTO #JSON (
-                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(@TemporaryJSONTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 SELECT
-                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(@TemporaryJSONTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 FROM 
-                    OPENJSON(@JSON) 
+                    OPENJSON(@JSON)
                         WITH(
-                             ' + REPLACE(@OPENJSONWithString, N'/*INDENT SPACES*/', N'                            ') + N'
+                             ' + REPLACE(@OPENJSONWithCreateString, N'/*INDENT SPACES*/', N'                            ') + N'
                         );
 
                 /* Perform the create (insert) */
                 INSERT INTO ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N' (
-                     ' + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                    ') + N'
+                        ' + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                       ') + N'
                 )
                 OUTPUT
-                     ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                        ' + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'                       ') + N'
                 INTO #Output (
-                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                        ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                       ') + N'
                 )
                 SELECT
-                     ' + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                    ') + N'
+                        ' + REPLACE(@InsertIntoSelectString, N'/*INDENT SPACES*/', N'                       ') + N'
                 FROM
-                    #JSON AS J;
+                    #JSON AS [#JSON];
 
                 /* Select the inserted row from the output temporary table to return */
                 SELECT
@@ -1394,8 +2213,10 @@ AS
             END;
         ELSE
             BEGIN
-                RAISERROR(N''JSON is not valid!'', 1, 0) WITH NOWAIT;
-                RETURN;
+                ;THROW 52001, ''JSON is not valid!'', 1;
+                /* Use RAISERROR below if you do not need a hard error thrown.
+                RAISERROR(N''JSON is not valid!'', 1, 1) WITH NOWAIT;
+                RETURN -1;*/
             END;
     END;'               ;
 
@@ -1444,9 +2265,9 @@ AS
                         **********************************************************************************************************************/
                         SELECT
                             @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(QUOTENAME(CL.TableAlias) AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                                                                                                                THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                                                                           ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                                                                       END
+                                                                                                                                                                                                                                                                                                                                                           THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                                      ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                                  END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1474,9 +2295,9 @@ AS
                         **********************************************************************************************************************/
                         SELECT
                             @WhereString = @WhereString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                                       THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                  ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                  THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                             ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                         END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1513,15 +2334,31 @@ AS
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
 
                         IF LEN(@ParameterString) > 0
+                        OR @HasDateTimeOffsetFlag = 1
                             BEGIN
-                                SET @ExecuteReadString = @ExecuteReadString + N' (
-     '                                                   + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ');
-                                IF @HasDateTimeOffsetFlag = 1
+                                SET @ExecuteReadString = @ExecuteReadString + N' (';
+                            END;
+
+                        IF LEN(@ParameterString) > 0
+                            BEGIN
+                                SET @ExecuteReadString = @ExecuteReadString + N'
+    '                                                    + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ');
+                            END;
+
+                        IF @HasDateTimeOffsetFlag = 1
+                            BEGIN
+                                IF LEN(@ParameterString) > 0
                                     BEGIN
-                                        SET @ExecuteReadString = @ExecuteReadString + N'
-    ,@AtTimeZoneName nvarchar(MAX) = N''Central Standard Time'' /* SELECT name FROM sys.time_zone_info */';
+                                        SET @ExecuteReadString = @ExecuteReadString + N',';
                                     END;
 
+                                SET @ExecuteReadString = @ExecuteReadString + N'
+    @AtTimeZoneName nvarchar(MAX) = N''Central Standard Time'' /* SELECT name FROM sys.time_zone_info */';
+                            END;
+
+                        IF LEN(@ParameterString) > 0
+                        OR @HasDateTimeOffsetFlag = 1
+                            BEGIN
                                 SET @ExecuteReadString = @ExecuteReadString + N'
 )'                              ;
                             END;
@@ -1569,9 +2406,9 @@ AS
                         **********************************************************************************************************************/
                         SELECT
                             @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(QUOTENAME(CL.TableAlias) AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                                                                                                                THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                                                                           ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                                                                       END
+                                                                                                                                                                                                                                                                                                                                                           THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                                      ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                                  END
                         FROM
                             #ColumnList AS CL
                         ORDER BY
@@ -1582,7 +2419,6 @@ AS
                             BEGIN
                                 SET @SelectString = RIGHT(@SelectString, LEN(@SelectString) - 20);
                             END;
-
 
                         /**********************************************************************************************************************
                         ** Build the parameter list
@@ -1612,9 +2448,9 @@ AS
                         **********************************************************************************************************************/
                         SELECT
                             @WhereString = @WhereString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CAST(N' = @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                      THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                 ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                             END
+                                                                                                                                                                                                                                                                 THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                            ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                        END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -1651,15 +2487,31 @@ AS
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName);
 
                         IF LEN(@ParameterString) > 0
+                        OR @HasDateTimeOffsetFlag = 1
                             BEGIN
-                                SET @ExecuteReadEagerString = @ExecuteReadEagerString + N' (
-     '                                                        + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ');
-                                IF @HasDateTimeOffsetFlag = 1
+                                SET @ExecuteReadEagerString = @ExecuteReadEagerString + N' (';
+                            END;
+
+                        IF LEN(@ParameterString) > 0
+                            BEGIN
+                                SET @ExecuteReadEagerString = @ExecuteReadEagerString + N'
+    '                                                         + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ');
+                            END;
+
+                        IF @HasDateTimeOffsetFlag = 1
+                            BEGIN
+                                IF LEN(@ParameterString) > 0
                                     BEGIN
-                                        SET @ExecuteReadEagerString = @ExecuteReadEagerString + N'
-    ,@AtTimeZoneName nvarchar(MAX) = N''Central Standard Time'' /* SELECT name FROM sys.time_zone_info */';
+                                        SET @ExecuteReadEagerString = @ExecuteReadEagerString + N',';
                                     END;
 
+                                SET @ExecuteReadEagerString = @ExecuteReadEagerString + N'
+    @AtTimeZoneName nvarchar(MAX) = N''Central Standard Time'' /* SELECT name FROM sys.time_zone_info */';
+                            END;
+
+                        IF LEN(@ParameterString) > 0
+                        OR @HasDateTimeOffsetFlag = 1
+                            BEGIN
                                 SET @ExecuteReadEagerString = @ExecuteReadEagerString + N'
 )'                              ;
                             END;
@@ -1716,7 +2568,7 @@ AS
                         WHERE
                             CL.Depth          = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowCreateTimeColumnName, @RowUpdateTimeColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1731,17 +2583,52 @@ AS
                         ** Build the UPDATE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                 END
+                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CASE CL.ColumnName
+                                                                                                                                             WHEN @RowUpdateTimeColumnName
+                                                                                                                                                 THEN CASE @RowUpdateTimeFunction
+                                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                                      END
+                                                                                                                                             WHEN @RowCreateTimeColumnName
+                                                                                                                                                 THEN CASE @RowCreateTimeFunction
+                                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                                      END
+                                                                                                                                             ELSE N'@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                END
+
+                                                                                                                                         END
                         FROM
                             #ColumnList AS CL
                         WHERE
                             CL.Depth          = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1761,14 +2648,14 @@ AS
                                                                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                 END
                            ,@JoinString  = @JoinString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + CAST(N' = J.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                    THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                               ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                           END
+                                                                                                                                                                                                                                                               THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                          ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                      END
                         FROM
                             #ColumnList AS CL
                         WHERE
                             CL.Depth             = 0
-                        AND (CL.IsPrimaryKeyFlag = 1 OR CL.ColumnName = 'RowVersionStamp')
+                        AND (CL.IsPrimaryKeyFlag = 1 OR CL.ColumnName = @RowVersionStampColumnName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1817,7 +2704,7 @@ AS
 
         /* Create temporary table to store the output */
         CREATE TABLE #Output (
-             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+             '                                     + REPLACE(@TemporaryTableOutputStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
         );
 
         /* Perform the update */
@@ -1826,18 +2713,20 @@ AS
         SET
              '                                     + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'            ') + N'
         OUTPUT
-             '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'            ') + N'
+             '                                     + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'            ') + N'
         INTO #Output (
              '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
         )
         WHERE
-            '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'            ') + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
+            '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'            ') + N';' + CASE WHEN CHARINDEX(@RowVersionStampColumnName, @WhereString, 0) > 0
                                                                                                                                     THEN N'
 
         IF @@ROWCOUNT = 0
             BEGIN
+                ;THROW 52001, ''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1;
+                /* Use RAISERROR below if you do not need a hard error thrown.
                 RAISERROR(N''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1, 1) WITH NOWAIT;
-                RETURN 0;
+                RETURN -1;*/
             END;'
                                                                                                                                ELSE N''
                                                                                                                            END + N'
@@ -1874,17 +2763,52 @@ AS
                                                                                                                                                                               THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                          ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                      END
-                           ,@UpdateJSONString = @UpdateJSONString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = J.' + QUOTENAME(CL.ColumnNameCleaned) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                              THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                         ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                     END
+                           ,@UpdateJSONString = @UpdateJSONString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CASE CL.ColumnName
+                                                                                                                                                     WHEN @RowUpdateTimeColumnName
+                                                                                                                                                         THEN CASE @RowUpdateTimeFunction
+                                                                                                                                                                  WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                                      THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                                  WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                                      THEN N'SYSUTCDATETIME()'
+                                                                                                                                                                  WHEN 'SYSDATETIME()'
+                                                                                                                                                                      THEN N'SYSDATETIME()'
+                                                                                                                                                                  WHEN 'GETUTCDATE()'
+                                                                                                                                                                      THEN N'GETUTCDATE()'
+                                                                                                                                                                  WHEN 'GETDATE()'
+                                                                                                                                                                      THEN N'GETDATE()'
+                                                                                                                                                                  WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                                      THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                                  ELSE N'SYSDATETIME()'
+                                                                                                                                                              END
+                                                                                                                                                     WHEN @RowCreateTimeColumnName
+                                                                                                                                                         THEN CASE @RowCreateTimeFunction
+                                                                                                                                                                  WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                                      THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                                  WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                                      THEN N'SYSUTCDATETIME()'
+                                                                                                                                                                  WHEN 'SYSDATETIME()'
+                                                                                                                                                                      THEN N'SYSDATETIME()'
+                                                                                                                                                                  WHEN 'GETUTCDATE()'
+                                                                                                                                                                      THEN N'GETUTCDATE()'
+                                                                                                                                                                  WHEN 'GETDATE()'
+                                                                                                                                                                      THEN N'GETDATE()'
+                                                                                                                                                                  WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                                      THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                                  ELSE N'SYSDATETIME()'
+                                                                                                                                                              END
+                                                                                                                                                     ELSE N'[#JSON].' + QUOTENAME(CL.ColumnNameCleaned) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                          END
+
+                                                                                                                                                 END
                         FROM
                             #ColumnList AS CL
                         WHERE
                             CL.Depth          = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1908,15 +2832,16 @@ AS
                                                                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
                                                                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
                                                                                                                                                                                                                 END
-                           ,@JoinString  = @JoinString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + CAST(N' = J.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                    THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                               ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                           END
+                           ,@JoinString  = @JoinString + @NewLineString + CAST(N'/*INDENT SPACES*/AND ' AS nvarchar(MAX)) + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + CAST(N' = [#JSON].' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                                                                                                     THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                            END
                         FROM
                             #ColumnList AS CL
                         WHERE
                             CL.Depth             = 0
-                        AND (CL.IsPrimaryKeyFlag = 1 OR CL.ColumnName = 'RowVersionStamp')
+                        AND (CL.IsPrimaryKeyFlag = 1 OR CL.ColumnName = @RowVersionStampColumnName)
+                        AND CL.ColumnName NOT IN (@RowVersionStampColumnName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -1936,6 +2861,7 @@ AS
                             BEGIN
                                 SET @JoinString = RIGHT(@JoinString, LEN(@JoinString) - 23);
                             END;
+
 
                         /**********************************************************************************************************************
                         ** Find the table alias
@@ -1979,7 +2905,7 @@ AS
 **                      ]
 **
 ** Notes:       It is possible to create a stored procedure to accept JSON that includes multiple objects that updates
-                  multiple tables.
+                  into multiple tables, just not with this generator tool.
 **********************************************************************************************************************/
 ' +                     @MITLicenseCommentString + N'
 CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName) + N' (
@@ -1991,7 +2917,7 @@ AS
 
         /* Create temporary table to store the output */
         CREATE TABLE #Output (
-             ' +        REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+             ' +        REPLACE(@TemporaryTableOutputStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
         );
 
         IF ISJSON(@JSON) = 1
@@ -2008,9 +2934,9 @@ AS
                 SELECT
                      ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 FROM 
-                    OPENJSON(@JSON) 
+                    OPENJSON(@JSON)
                         WITH(
-                             ' + REPLACE(@OPENJSONWithString, N'/*INDENT SPACES*/', N'                            ') + N'
+                             ' + REPLACE(@OPENJSONWithUpdateString, N'/*INDENT SPACES*/', N'                            ') + N'
                         );
 
                 /* Perform the update */
@@ -2019,25 +2945,30 @@ AS
                 SET
                      ' + REPLACE(@UpdateJSONString, N'/*INDENT SPACES*/', N'                    ') + N'
                 OUTPUT
-                     ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'                    ') + N'
                 INTO #Output (
-                     ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(@TemporaryTableOutputStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 FROM
                     ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N' AS ' + QUOTENAME(@TableAlias) + N'
-                    INNER JOIN #JSON AS J
-                        ON ' + REPLACE(@JoinString, N'/*INDENT SPACES*/', N'                           ') + N';
+                    INNER JOIN #JSON AS [#JSON]
+                        ON ' + CASE WHEN LEN(@JoinString) = 0
+                                        THEN N'1 = 0 /* Primary key not found */'
+                                   ELSE REPLACE(@JoinString, N'/*INDENT SPACES*/', N'                           ')
+                               END + N';
             END
         ELSE
             BEGIN
-                RAISERROR(N''JSON is not valid!'', 1, 0) WITH NOWAIT;
-                RETURN;
+                ;THROW 52001, ''JSON is not valid!'', 1;
+                /* Use RAISERROR below if you do not need a hard error thrown.
+                RAISERROR(N''JSON is not valid!'', 1, 1) WITH NOWAIT;
+                RETURN -1;*/
             END;
 
 
         /* Select the inserted row from the output temporary table to return */
         SELECT
-             ' +        REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'            ') + N'
+             ' +        REPLACE(@TemporaryTableOutputStringType, N'/*INDENT SPACES*/', N'            ') + N'
         FROM
             #Output;
 
@@ -2075,8 +3006,8 @@ AS
                             CL.Depth          = 0
                         AND CL.IsComputedFlag = 0
                         AND CL.IsIdentityFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2091,10 +3022,46 @@ AS
                         ** Build the UPDATE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                 END
+                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CASE CL.ColumnName
+                                                                                                                                             WHEN @RowUpdateTimeColumnName
+                                                                                                                                                 THEN CASE @RowUpdateTimeFunction
+                                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                                      END
+                                                                                                                                             WHEN @RowCreateTimeColumnName
+                                                                                                                                                 THEN CASE @RowCreateTimeFunction
+                                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                                      END
+                                                                                                                                             ELSE N'@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                END
+                                                                                                                                         END
+
+
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2103,7 +3070,7 @@ AS
                         AND CL.IsComputedFlag = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2122,7 +3089,7 @@ AS
                             FROM
                                 #ColumnList AS CL
                             WHERE
-                                CL.ColumnName = 'RowVersionStamp'
+                                CL.ColumnName = @RowVersionStampColumnName
                             AND CL.Depth      = 0
                         )
                             BEGIN
@@ -2149,7 +3116,7 @@ AS
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2164,10 +3131,14 @@ AS
                         ** Build the INSERT INTO VALUES clause
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                 END
+                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + CASE CL.ColumnName
+                                                                                                     WHEN @RowCreatePersonColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,@' + @RowUpdatePersonColumnName
+                                                                                                     ELSE N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                          END
+                                                                                                 END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2175,7 +3146,7 @@ AS
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowUpdateTimeColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2201,7 +3172,7 @@ AS
                         AND CL.IsPrimaryKeyFlag = 0
                         AND CL.IsComputedFlag   = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
+                        AND CL.ColumnName NOT IN (@RowUpdatePersonColumnName, @RowCreatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2250,33 +3221,33 @@ AS
         
         /* Create temporary table to store the output */
         CREATE TABLE #Output (
-             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+             '                                     + REPLACE(@TemporaryTableOutputStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
         );
-
-        BEGIN TRANSACTION;
 '                       ;
                         IF @HasRowVersionStampFlag = 1
                             BEGIN
                                 SET @ExecuteUpsertString = @ExecuteUpsertString + N'
-        IF @RowVersionStamp IS NULL
+        IF @'                                              + @RowVersionStampColumnName + N' IS NOT NULL
             BEGIN
                 UPDATE
                     '                                      + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' WITH (UPDLOCK, SERIALIZABLE)' AS nvarchar(MAX)) + N'
                 SET
                      '                                     + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                    ') + N'
                 OUTPUT
-                     '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                     '                                     + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'                    ') + N'
                 INTO #Output (
                      '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 WHERE
-                    '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'                ') + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
+                    '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'                ') + N';' + CASE WHEN CHARINDEX(@RowVersionStampColumnName, @WhereString, 0) > 0
                                                                                                                                                 THEN N'
 
                 IF @@ROWCOUNT = 0
                     BEGIN
+                        ;THROW 52001, ''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1;
+                        /* Use RAISERROR below if you do not need a hard error thrown.
                         RAISERROR(N''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1, 1) WITH NOWAIT;
-                        RETURN 0;
+                        RETURN -1;*/
                     END
                 ELSE
                     BEGIN
@@ -2299,12 +3270,12 @@ AS
                 SET
                      ' + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                    ') + N'
                 OUTPUT
-                     ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'                    ') + N'
                 INTO #Output (
                      ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 WHERE
-                    ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [RowVersionStamp] = @RowVersionStamp', N''), N'/*INDENT SPACES*/', N'                ') + N';
+                    ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [' + @RowVersionStampColumnName + '] = @' + @RowVersionStampColumnName + '', N''), N'/*INDENT SPACES*/', N'                ') + N';
 
                 IF @@ROWCOUNT = 0
                     BEGIN
@@ -2312,7 +3283,7 @@ AS
                              ' AS nvarchar(MAX)) + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                            ') + N'
                         )
                         OUTPUT
-                             ' + REPLACE(@OutputString
+                             ' + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)')
                                     ,N'/*INDENT SPACES*/'
                                     ,CASE WHEN @HasRowVersionStampFlag = 1
                                               THEN N'                            '
@@ -2345,9 +3316,6 @@ AS
                             END;
 
                         SET @ExecuteUpsertString = @ExecuteUpsertString + N'
-    
-        COMMIT TRANSACTION;
-
     END;'               ;
 
 
@@ -2380,7 +3348,7 @@ AS
                             CL.Depth          = 0
                         AND CL.IsComputedFlag = 0
                         AND CL.IsIdentityFlag = 0
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
                         ORDER BY
                             CL.ColumnListId ASC;
@@ -2396,10 +3364,45 @@ AS
                         ** Build the UPDATE clause
                         **********************************************************************************************************************/
                         SELECT
-                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = @' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                 END
+                            @UpdateString = @UpdateString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CASE CL.ColumnName
+                                                                                                                                             WHEN @RowUpdateTimeColumnName
+                                                                                                                                                 THEN CASE @RowUpdateTimeFunction
+                                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                                      END
+                                                                                                                                             WHEN @RowCreateTimeColumnName
+                                                                                                                                                 THEN CASE @RowCreateTimeFunction
+                                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                                      END
+                                                                                                                                             ELSE N'@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                                         THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                    ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                END
+
+                                                                                                                                         END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2408,7 +3411,7 @@ AS
                         AND CL.IsComputedFlag = 0
                         AND CL.IsIdentityFlag = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowCreateTimeColumnName, @RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2427,7 +3430,7 @@ AS
                             FROM
                                 #ColumnList AS CL
                             WHERE
-                                CL.ColumnName = 'RowVersionStamp'
+                                CL.ColumnName = @RowVersionStampColumnName
                             AND CL.Depth      = 0
                         )
                             BEGIN
@@ -2454,7 +3457,7 @@ AS
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2469,10 +3472,48 @@ AS
                         ** Build the INSERT INTO VALUES clause
                         **********************************************************************************************************************/
                         SELECT
-                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                          THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                     ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                 END
+                            @InsertIntoValuesString = @InsertIntoValuesString + @NewLineString + CASE CL.ColumnName
+                                                                                                     WHEN @RowCreatePersonColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,@' + @RowUpdatePersonColumnName
+                                                                                                     WHEN @RowUpdateTimeColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,' + CASE @RowUpdateTimeFunction
+                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                      END
+                                                                                                     WHEN @RowCreateTimeColumnName
+                                                                                                         THEN N'/*INDENT SPACES*/,' + CASE @RowCreateTimeFunction
+                                                                                                                                          WHEN 'SYSDATETIMEOFFSET()'
+                                                                                                                                              THEN N'SYSDATETIMEOFFSET()'
+                                                                                                                                          WHEN 'SYSUTCDATETIME()'
+                                                                                                                                              THEN N'SYSUTCDATETIME()'
+                                                                                                                                          WHEN 'SYSDATETIME()'
+                                                                                                                                              THEN N'SYSDATETIME()'
+                                                                                                                                          WHEN 'GETUTCDATE()'
+                                                                                                                                              THEN N'GETUTCDATE()'
+                                                                                                                                          WHEN 'GETDATE()'
+                                                                                                                                              THEN N'GETDATE()'
+                                                                                                                                          WHEN 'CURRENT_TIMESTAMP'
+                                                                                                                                              THEN N'CURRENT_TIMESTAMP'
+                                                                                                                                          ELSE N'SYSDATETIME()'
+                                                                                                                                      END
+                                                                                                     ELSE N'/*INDENT SPACES*/,@' + CL.ColumnNameCleaned + CASE WHEN LEN(CL.ColumnDescription) > 0
+                                                                                                                                                                   THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                              ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                          END
+                                                                                                 END
+
+
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -2480,7 +3521,7 @@ AS
                         AND CL.IsIdentityFlag = 0
                         AND CL.IsComputedFlag = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime', 'RowVersionStamp')
+                        AND CL.ColumnName NOT IN (@RowVersionStampColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2506,7 +3547,7 @@ AS
                         AND CL.IsPrimaryKeyFlag = 0
                         AND CL.IsComputedFlag   = 0
                         AND CL.TypeName NOT IN ('xml', 'ntext', 'text', 'image', 'sql_variant', 'hierarchyid', 'geometry', 'geography', 'varbinary', 'binary', 'sysname')
-                        AND CL.ColumnName NOT IN ('RowUpdateTime', 'RowCreateTime')
+                        AND CL.ColumnName NOT IN (@RowCreatePersonColumnName, @RowUpdatePersonColumnName, @RowUpdateTimeColumnName, @RowCreateTimeColumnName, @TemporalRowStartColumName, @TemporalRowEndColumName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2552,37 +3593,36 @@ AS
     BEGIN
 
         SET NOCOUNT, XACT_ABORT ON;
-        
-        BEGIN TRANSACTION;
 
         /* Create temporary table to store the output */
         CREATE TABLE #Output (
-             '                                     + REPLACE(@TemporaryTableStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
+             '                                     + REPLACE(@TemporaryTableOutputStringColumnType, N'/*INDENT SPACES*/', N'            ') + N'
         );
 '                       ;
                         IF @HasRowVersionStampFlag = 1
                             BEGIN
                                 SET @ExecuteIndateString = @ExecuteIndateString + N'
-
-        IF @RowVersionStamp IS NULL
+        IF @'                                              + @RowVersionStampColumnName + N' IS NOT NULL
             BEGIN
                 UPDATE
                     '                                      + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + CAST(N' WITH (UPDLOCK, SERIALIZABLE)' AS nvarchar(MAX)) + N'
                 SET
                      '                                     + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                    ') + N'
                 OUTPUT
-                     '                                     + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                     '                                     + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'                    ') + N'
                 INTO #Output (
                      '                                     + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 WHERE
-                    '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'                ') + N';' + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
+                    '                                      + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'                ') + N';' + CASE WHEN CHARINDEX(@RowVersionStampColumnName, @WhereString, 0) > 0
                                                                                                                                                 THEN N'
 
                 IF @@ROWCOUNT = 0
                     BEGIN
+                        ;THROW 52001, ''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1;
+                        /* Use RAISERROR below if you do not need a hard error thrown.
                         RAISERROR(N''The record you attempted to save was modified by another user after you received the original values! The save operation was canceled, and the current values have been displayed. If you still want to update this record, click the Save button again.'', 1, 1) WITH NOWAIT;
-                        RETURN 0;
+                        RETURN -1;*/
                     END
                 ELSE
                     BEGIN
@@ -2604,7 +3644,7 @@ AS
                      ' AS nvarchar(MAX)) + REPLACE(@InsertIntoString, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
                 OUTPUT
-                     ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                    ') + N'
+                     ' + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'                    ') + N'
                 INTO #Output (
                      ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                    ') + N'
                 )
@@ -2617,7 +3657,7 @@ AS
                     FROM
                         ' + QUOTENAME(@SchemaName) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(@TableName) + N'
                     WHERE
-                        ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [RowVersionStamp] = @RowVersionStamp', N''), N'/*INDENT SPACES*/', N'                    ') + N'
+                        ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [' + @RowVersionStampColumnName + '] = @' + @RowVersionStampColumnName + '', N''), N'/*INDENT SPACES*/', N'                    ') + N'
                 );
 
                 IF @@ROWCOUNT = 0
@@ -2627,12 +3667,12 @@ AS
                         SET
                              ' + REPLACE(@UpdateString, N'/*INDENT SPACES*/', N'                            ') + N'
                         OUTPUT
-                             ' + REPLACE(@OutputString, N'/*INDENT SPACES*/', N'                            ') + N'
+                             ' + REPLACE(REPLACE(@OutputString, 'Inserted.[' + @RowVersionStampColumnName + ']', 'CONVERT(NVARCHAR(20), CONVERT(BINARY(8), Inserted.[' + @RowVersionStampColumnName + ']), 1)'), N'/*INDENT SPACES*/', N'                            ') + N'
                         INTO #Output (
                              ' + REPLACE(@TemporaryTableStringType, N'/*INDENT SPACES*/', N'                            ') + N'
                         )
                         WHERE
-                            ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [RowVersionStamp] = @RowVersionStamp', N''), N'/*INDENT SPACES*/', N'                        ') + N';
+                            ' + REPLACE(REPLACE(@WhereString, N'' + @NewLineString + '/*INDENT SPACES*/AND [' + @RowVersionStampColumnName + '] = @' + @RowVersionStampColumnName + '', N''), N'/*INDENT SPACES*/', N'                        ') + N';
 
                     END;
 
@@ -2651,8 +3691,6 @@ AS
 
                         SET @ExecuteIndateString = @ExecuteIndateString + N'
     
-        COMMIT TRANSACTION;
-
     END;'               ;
 
 
@@ -2685,7 +3723,7 @@ AS
                             CL.Depth            = 0
                         AND (
                             CL.IsPrimaryKeyFlag = 1
-                            OR (CL.ColumnName   = 'RowVersionStamp' AND CL.Depth = 0)
+                            OR (CL.ColumnName   = @RowVersionStampColumnName AND CL.Depth = 0)
                         )
                         ORDER BY
                             CL.ColumnListId ASC;
@@ -2709,7 +3747,7 @@ AS
                             #ColumnList AS CL
                         WHERE
                             CL.Depth             = 0
-                        AND (CL.IsPrimaryKeyFlag = 1 OR CL.ColumnName = 'RowVersionStamp')
+                        AND (CL.IsPrimaryKeyFlag = 1 OR CL.ColumnName = @RowVersionStampColumnName)
                         ORDER BY
                             CL.ColumnListId ASC;
 
@@ -2763,13 +3801,15 @@ AS
             '                                              + REPLACE(@WhereString, N'/*INDENT SPACES*/', N'        ') + N';';
                             END;
 
-                        SET @ExecuteDeleteString = @ExecuteDeleteString + CASE WHEN CHARINDEX('RowVersionStamp', @WhereString, 0) > 0
+                        SET @ExecuteDeleteString = @ExecuteDeleteString + CASE WHEN CHARINDEX(@RowVersionStampColumnName, @WhereString, 0) > 0
                                                                                    THEN N'
 
         IF @@ROWCOUNT = 0
             BEGIN
+                ;THROW 52001, ''The record you attempted to delete was modified by another user after you received the original values! The delete operation was canceled. If you still want to delete this record, click the Delete button again.'', 1;
+                /* Use RAISERROR below if you do not need a hard error thrown.
                 RAISERROR(N''The record you attempted to delete was modified by another user after you received the original values! The delete operation was canceled. If you still want to delete this record, click the Delete button again.'', 1, 1) WITH NOWAIT;
-                RETURN 0;
+                RETURN -1;*/
             END;'
                                                                               ELSE N''
                                                                           END;
@@ -2922,8 +3962,8 @@ AS
                             @WhereString = @WhereString + N'
     IF @'                                  + CL.ColumnNameCleaned + CAST(N'Value IS NOT NULL OR @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CAST(N'Operator IN (''Blanks'', ''NonBlanks'')
         BEGIN
-            /* Figure out if the value contains the string [ to ] */
-            SET @SeparatorStartingPosition = CHARINDEX('' to '', @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N');
+            /* Figure out if the value contains the string [' + @SearchSeparatorString + '] */
+            SET @SeparatorStartingPosition = CHARINDEX(''' + @SearchSeparatorString + ''', @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N');
 
             IF @'                          + CL.ColumnNameCleaned + N'Operator IN (''Exists'', ''NotExists'')
                 BEGIN
@@ -3105,109 +4145,109 @@ AS
 
                     WHEN ''Equals''                         THEN N''
     AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N'''
             WHEN ''EqualsWithBlanks''               THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''DoesNotEqual''                         THEN N''
     AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N'''
             WHEN ''DoesNotEqualWithBlanks''               THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThan''                         THEN N''
     AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N'''
             WHEN ''GreaterThanWithBlanks''               THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''GreaterThanOrEqualTo''                         THEN N''
     AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N'''
             WHEN ''GreaterThanOrEqualToWithBlanks''               THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThan''                         THEN N''
     AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N'''
             WHEN ''LessThanWithBlanks''               THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''LessThanOrEqualTo''                         THEN N''
     AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N'''
             WHEN ''LessThanOrEqualToWithBlanks''               THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
             WHEN ''Between'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+                                                                                                   END + N'''
                     ELSE N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
+                                                                                                   END + N'''
                                     END
 
             WHEN ''BetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                   END + N'''
                     ELSE N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                   END + N'''
                                     END
             WHEN ''NotBetween'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+                                                                                                  END + N'''
                     ELSE N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
+                                                                                                  END + N'''
                                     END
 
             WHEN ''NotBetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                  END + N'''
                     ELSE N''
     AND (' +                QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                  END + N'''
                                     END
             WHEN ''Blanks''                         THEN N''
     AND ' +                 QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
@@ -3426,7 +4466,6 @@ AS
         SET @StringToExecute = N''
 /* Executed by stored procedure named '                    + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName + @ProcedureType) + N' */'' + N''
 
-
 /* Create temporary table to store the searched keys */
 CREATE TABLE #Keys (
      KeyId bigint NOT NULL IDENTITY(1, 1) PRIMARY KEY CLUSTERED
@@ -3606,9 +4645,9 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                         **********************************************************************************************************************/
                         SELECT
                             @SelectString = @SelectString + @NewLineString + N'/*INDENT SPACES*/,' + QUOTENAME(CL.ColumnName) + N' = ' + CAST(QUOTENAME(CL.TableAlias) AS nvarchar(MAX)) + CAST(N'.' AS nvarchar(MAX)) + QUOTENAME(CL.ColumnName) + CASE WHEN CL.TypeName = 'datetimeoffset' THEN N' AT TIME ZONE @AtTimeZoneName' ELSE N'' END + CASE WHEN LEN(CL.ColumnDescription) > 0
-                                                                                                                                                                                                                                                                                                                                                THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                                                                           ELSE CAST(N'' AS nvarchar(MAX))
-                                                                                                                                                                                                                                                                                                                                       END
+                                                                                                                                                                                                                                                                                                                                                           THEN CAST(N' /* ' AS nvarchar(MAX)) + CL.ColumnDescription + CAST(N' */' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                                      ELSE CAST(N'' AS nvarchar(MAX))
+                                                                                                                                                                                                                                                                                                                                                  END
                         FROM
                             #ColumnList AS CL
                         WHERE
@@ -3711,8 +4750,8 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                             @WhereString = @WhereString + N'
         IF @'                              + CL.ColumnNameCleaned + CAST(N'Value IS NOT NULL OR @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CAST(N'Operator IN (''Blanks'', ''NonBlanks'')
             BEGIN
-                /* Figure out if the value contains the string [ to ] */
-                SET @SeparatorStartingPosition = CHARINDEX('' to '', @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N');
+                /* Figure out if the value contains the string [' + @SearchSeparatorString + '] */
+                SET @SeparatorStartingPosition = CHARINDEX(''' + @SearchSeparatorString + ''', @' AS nvarchar(MAX)) + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N');
 
                 IF @'                      + CL.ColumnNameCleaned + N'Operator IN (''Exists'', ''NotExists'')
                     BEGIN
@@ -3723,15 +4762,15 @@ Copy just the T-SQL below this block comment into a new query window to execute.
                 ELSE
                     BEGIN
                         /* Split the value into begin and end variables for other where operators */
-                        IF @SeparatorStartingPosition = 0
-                            BEGIN
-                                SET @'     + CL.ColumnNameCleaned + CAST('Begin' AS nvarchar(MAX)) + N' = @' + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N';
-                                SET @'     + CL.ColumnNameCleaned + CAST('End' AS nvarchar(MAX)) + N' = @' + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N';
-                            END;
-                        ELSE
+                        IF @SeparatorStartingPosition > 0 AND @' + CL.ColumnNameCleaned + N'Operator IN (''Between'', ''BetweenWithBlanks'', ''NotBetween'', ''NotBetweenWithBlanks'')
                             BEGIN
                                 SET @'     + CL.ColumnNameCleaned + CAST('Begin' AS nvarchar(MAX)) + N' = SUBSTRING(@' + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N', 1, @SeparatorStartingPosition - 1);
                                 SET @'     + CL.ColumnNameCleaned + CAST('End' AS nvarchar(MAX)) + N' = SUBSTRING(@' + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N', @SeparatorStartingPosition + 4, LEN(@' + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N'));
+                            END;
+                        ELSE
+                            BEGIN
+                                SET @'     + CL.ColumnNameCleaned + CAST('Begin' AS nvarchar(MAX)) + N' = @' + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N';
+                                SET @'     + CL.ColumnNameCleaned + CAST('End' AS nvarchar(MAX)) + N' = @' + CL.ColumnNameCleaned + CAST('Value' AS nvarchar(MAX)) + N';
                             END;
                     END;
 '                                          +
@@ -3894,109 +4933,109 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 
                     WHEN ''Equals''                         THEN N''
             AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N'''
                     WHEN ''EqualsWithBlanks''               THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' = ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''DoesNotEqual''                         THEN N''
             AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N'''
                     WHEN ''DoesNotEqualWithBlanks''               THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <> ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThan''                         THEN N''
             AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N'''
                     WHEN ''GreaterThanWithBlanks''               THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' > ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''GreaterThanOrEqualTo''                         THEN N''
             AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N'''
                     WHEN ''GreaterThanOrEqualToWithBlanks''               THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThan''                         THEN N''
             AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N'''
                     WHEN ''LessThanWithBlanks''               THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                       END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                  END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''LessThanOrEqualTo''                         THEN N''
             AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N'''
                     WHEN ''LessThanOrEqualToWithBlanks''               THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
-                                                                                        END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin'
+                                                                                                   END + N' OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)''
                     WHEN ''Between'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+                                                                                                   END + N'''
                             ELSE N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End)'
+                                                                                                   END + N'''
                                           END
 
                     WHEN ''BetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                   END + N'''
                             ELSE N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                 THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                            ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                        END + N'''
+                                                                                                            THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                       ELSE N'@' + CL.ColumnNameCleaned + N'Begin AND ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' <= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                   END + N'''
                                           END
                     WHEN ''NotBetween'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName))'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End))'
+                                                                                                  END + N'''
                             ELSE N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName)'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End)'
+                                                                                                  END + N'''
                                           END
 
                     WHEN ''NotBetweenWithBlanks'' THEN CASE WHEN @' + CL.ColumnNameCleaned + N'EndDataType = ''date'' THEN N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, CAST(@' + CL.ColumnNameCleaned + N'End AS datetime2(7)) AT TIME ZONE @AtTimeZoneName) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= DATEADD(DAY, 1, @' + CL.ColumnNameCleaned + N'End) OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                  END + N'''
                             ELSE N''
             AND (' +        QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' < ' + CASE WHEN CL.TypeName IN ('datetime2', 'datetimeoffset', 'smalldatetime', 'datetime')
-                                                                                                THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                           ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
-                                                                                       END + N'''
+                                                                                                           THEN N'CAST(@' + CL.ColumnNameCleaned + N'Begin AS datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= CAST(@' + CL.ColumnNameCleaned + N'End as datetime2(7)) AT TIME ZONE @AtTimeZoneName OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                      ELSE N'@' + CL.ColumnNameCleaned + N'Begin OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' >= @' + CL.ColumnNameCleaned + N'End OR ' + QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL)'
+                                                                                                  END + N'''
                                           END
                     WHEN ''Blanks''                         THEN N''
             AND ' +         QUOTENAME(CL.TableAlias) + N'.' + QUOTENAME(CL.ColumnName) + N' IS NULL''
@@ -4125,7 +5164,11 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **              but your code might not work at scale. You or the query performance tuner will not be able to view 
 **              metrics tracked in DMVs when using the OPTION (RECOMPILE) hint.
 **
-** Notes:       Assess enabling ''Optimize for AdHoc Workloads'' if the adhoc plan cache is 20-30% of the total plan cache.
+** Notes:       Using a view instead of a starting table could be the best way to craft a generated search store 
+**              procedure. Creating a view allows you to specify the tables/columns/joins that are used in the serch 
+**              stored proecture generation.
+**
+**              Assess enabling ''Optimize for AdHoc Workloads'' if the adhoc plan cache is 20-30% of the total plan cache.
 **
 **              This dynamic SQL stored procedure does not prevent parameter sniffing. The best solution is to use 
 **              comment injection to create separate cached execution plans based on the data distribution (big data, 
@@ -4172,6 +5215,16 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **                   GreaterThanOrEqualTo, GreaterThanOrEqualToWithBlanks, LessThan, LessThanWithBlanks, LessThanOrEqualTo, 
 **                   LessThanOrEqualToWithBlanks, Between, BetweenWithBlanks, NotBetween, NotBetweenWithBlanks, Blanks, 
 **                   NonBlanks, Exists, NotExists
+**                     
+**              @TemporalForSystemTimeValue: This is for system-versioned temporal tables time value. You will pass in a 
+**                                            single datetime2 value or multiple based on the clause passed in.
+**                                            {AS OF}: will be a single datetime2 value like 2022-02-03 17:01:54.9320817.
+**                                            {FROM | BETWEEN | CONTAINED IN}: exepcts a data range like 2022-02-01 to 2022-02-03
+**                                              or 2022-02-14 00:00:00.0000000 to 2022-02-15 23:59:59.9999999.
+**                                            All: does not require a time value.
+**
+**              @TemporalForSystemTimeClause: This is for passing in a system-versioned temporal tables clause. Valid sub-
+**                                             clauses are {AS OF | FROM | BETWEEN | CONTAINED IN | ALL}.
 **
 **              @PageNumber: This is for pagination of the query results. Pass 1 to return the 1st page of results, set 
 **                           the value to 2 for the 2nd page.
@@ -4229,7 +5282,16 @@ CREATE PROCEDURE ' +    QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@ProcedureName
                         IF LEN(@ParameterString) > 0
                             BEGIN
                                 SET @ExecuteSearchString = @ExecuteSearchString + N' (
-     '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ') + N'
+     '                                                     + REPLACE(@ParameterString, N'/*INDENT SPACES*/', N'    ');
+
+                                IF @IsTemporalTableStoredProcedureFlag = 1
+                                    BEGIN
+                                        SET @ExecuteSearchString = @ExecuteSearchString + N'
+    ,@TemporalForSystemTimeValue nvarchar(MAX) = NULL /* {2022-02-03 17:01:54.9320817 | 2022-02-01 to 2022-02-03} */
+    ,@TemporalForSystemTimeClause varchar(20) = NULL /* {AS OF | FROM | BETWEEN | CONTAINED IN | ALL} */';
+                                    END;
+
+                                SET @ExecuteSearchString = @ExecuteSearchString + N'
     ,@AtTimeZoneName nvarchar(MAX) = N''Central Standard Time'' /* SELECT name FROM sys.time_zone_info */
     ,@PageNumber int = 1
     ,@PageSize int = 100
@@ -4254,22 +5316,56 @@ AS
         SET @SeparatorStartingPosition = 0;
         SET @OrderByString = N'''';
 
-        /* Parameter Variables - This is for splitting parameters into begin and end variables for BETWEEN operations */
-        '                                          + REPLACE(@BetweenVariableString, N'/*INDENT SPACES*/', N'        ') + N'
+        /* Parameter Variables - This is for splitting parameters into begin and end variables for BETWEEN operations */';
+                        IF @IsTemporalTableStoredProcedureFlag = 1
+                            BEGIN
+                                SET @ExecuteSearchString = @ExecuteSearchString + N'
+        DECLARE @TemporalForSystemTimeBegin nvarchar(MAX);
+        DECLARE @TemporalForSystemTimeEnd nvarchar(MAX);';
+                            END;
 
+                        SET @ExecuteSearchString = @ExecuteSearchString + N'
+        '                                          + REPLACE(@BetweenVariableString, N'/*INDENT SPACES*/', N'        ');
+
+                        IF @IsTemporalTableStoredProcedureFlag = 1
+                            BEGIN
+                                SET @ExecuteSearchString = @ExecuteSearchString + N'
+
+        /*  Split out the TemporalForSystemTimeValue parameter */
+        IF @TemporalForSystemTimeValue IS NOT NULL AND @TemporalForSystemTimeClause IN (''FROM'', ''BETWEEN'', ''CONTAINED IN'')
+            BEGIN
+                /* Figure out if the value contains the string [' + @SearchSeparatorString + N'] */
+                SET @SeparatorStartingPosition = CHARINDEX(''' + @SearchSeparatorString + N''', @TemporalForSystemTimeValue);
+                
+                /* Split the value into begin and end variables for other where operators */
+                IF @SeparatorStartingPosition = 0
+                    BEGIN
+                        SET @TemporalForSystemTimeBegin = @TemporalForSystemTimeValue;
+                        SET @TemporalForSystemTimeEnd = @TemporalForSystemTimeValue;
+                    END;
+                ELSE
+                    BEGIN
+                        SET @TemporalForSystemTimeBegin = SUBSTRING(@TemporalForSystemTimeValue, 1, @SeparatorStartingPosition - 1);
+                        SET @TemporalForSystemTimeEnd = SUBSTRING(@TemporalForSystemTimeValue, @SeparatorStartingPosition + 4, LEN(@TemporalForSystemTimeValue));
+                END;
+            END;
+'                               ;
+                            END;
+
+                        SET @ExecuteSearchString = @ExecuteSearchString + N'
         /* Create Temp Tables - This is for inserting JSON into for passing a list of parameter values */
         '                                          + REPLACE(@TempTableListString, N'/*INDENT SPACES*/', N'        ') + N'
 
         /* Create Temp Table - This is to store the table aliases for translation */
-        CREATE TABLE #TableList (
+        CREATE TABLE #TableAliasList (
              SchemaName nvarchar(128) NULL
             ,TableName  nvarchar(128) NULL
             ,TableAlias nvarchar(128) NULL
         );
 
-        INSERT INTO #TableList (SchemaName, TableName, TableAlias)
+        INSERT INTO #TableAliasList (SchemaName, TableName, TableAlias)
         VALUES
-             ' + REPLACE(@TableListInsertValuesString, N'/*INDENT SPACES*/', N'            ') + N';
+             '                                     + REPLACE(@TableListInsertValuesString, N'/*INDENT SPACES*/', N'            ') + N';
             
         /* Create Temp Tables - This is for inserting JSON into for passing a list of parameter values */
         CREATE TABLE #OrderColumns (
@@ -4304,29 +5400,31 @@ AS
             )
         )
             BEGIN
-                RAISERROR(N''OrderColumn parameter is not a valid table column!'', 1, 0) WITH NOWAIT;
-                RETURN 1;
+                ;THROW 52001, ''OrderColumn parameter is not a valid table column!'', 1;
+                /* Use RAISERROR below if you do not need a hard error thrown.
+                RAISERROR(N''OrderColumn parameter is not a valid table column!'', 1, 1) WITH NOWAIT;
+                RETURN -1;*/
             END;
 
         /* Build the ORDER BY */
         SELECT
-            @OrderByString = @OrderByString + N'', '' + CASE WHEN TL.TableAlias IS NOT NULL THEN QUOTENAME(TL.TableAlias) + N''.'' ELSE N'''' END + OC.ColumnName + CASE WHEN OC.Direction = N''DESC'' THEN N'' DESC'' ELSE N'' ASC'' END
+            @OrderByString = @OrderByString + N'', '' + CASE WHEN TAL.TableAlias IS NOT NULL THEN QUOTENAME(TAL.TableAlias) + N''.'' ELSE N'''' END + QUOTENAME(OC.ColumnName) + CASE WHEN OC.Direction = N''DESC'' THEN N'' DESC'' ELSE N'' ASC'' END
         FROM
             #OrderColumns              AS OC
-            LEFT OUTER JOIN #TableList AS TL
+            LEFT OUTER JOIN #TableAliasList AS TAL
                 ON CASE WHEN OC.SchemaName IS NOT NULL
                       THEN OC.SchemaName
                       ELSE (
                        SELECT TOP (1)
-                           TL.SchemaName
+                           TAL.SchemaName
                        FROM
-                           #TableList AS TL
+                           #TableAliasList AS TAL
                        WHERE
-                           TL.TableName = OC.TableName
+                           TAL.TableName = OC.TableName
                        ORDER BY
-                           TL.SchemaName
-                   ) END            = TL.SchemaName
-                AND OC.TableName = TL.TableName
+                           TAL.SchemaName
+                   ) END         = TAL.SchemaName
+                AND OC.TableName = TAL.TableName
         ORDER BY
             OC.OrderNumber ASC;
 
@@ -4342,11 +5440,45 @@ AS
 
 WITH Keys
     AS (
-        SELECT
+        SELECT DISTINCT
             '                                      + QUOTENAME(@IdentityColumnNameString) + N' = ' + QUOTENAME(@IdentityColumnTableAliasString) + N'.' + QUOTENAME(@IdentityColumnNameString) + N'
-            ,RowNumber = ROW_NUMBER() OVER (ORDER BY '' + @OrderByString + N'')
+            ,RowNumber = DENSE_RANK() OVER (ORDER BY '' + @OrderByString + N''' +  
+            
+            CASE WHEN @IsTemporalTableStoredProcedureFlag = 1 THEN
+                N', ' + QUOTENAME(@IdentityColumnTableAliasString) + N'.' + QUOTENAME(@IdentityColumnNameString) + N' ASC /* in order to use DENSE_RANK() the identity column needs to be included, even if duplicated. */'
+            ELSE
+                N''
+            END
+
+            + N')
         FROM
-            '                                      + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'                '), N'/*INDENT SPACES*/', N'            '), N'/*[JOIN CONDITION]*/', N'') + N'
+            '                                      + REPLACE(REPLACE(REPLACE(CASE WHEN @IsTemporalTableStoredProcedureFlag = 0
+                                                                                      THEN REPLACE(@FromString, N'/*[TEMPORAL TABLE CLAUSE]*/', N'')
+                                                                                 ELSE REPLACE(@FromString, N'/*[TEMPORAL TABLE CLAUSE]*/', N''' + 
+                    CASE WHEN @TemporalForSystemTimeClause IS NOT NULL THEN N'' FOR SYSTEM_TIME '' + 
+                            CASE @TemporalForSystemTimeClause
+                                WHEN ''AS OF'' THEN N''AS OF '''''' + @TemporalForSystemTimeValue + ''''''''
+                                WHEN ''FROM'' THEN N''FROM '''''' + @TemporalForSystemTimeBegin + '''''' TO '''''' + @TemporalForSystemTimeEnd + ''''''''
+                                WHEN ''BETWEEN'' THEN N''BETWEEN '''''' + @TemporalForSystemTimeBegin + '''''' AND '''''' + @TemporalForSystemTimeEnd + ''''''''
+                                WHEN ''CONTAINED IN'' THEN N''CONTAINED IN ('''''' + @TemporalForSystemTimeBegin + '''''', '''''' + @TemporalForSystemTimeEnd + '''''')''
+                                WHEN ''ALL'' THEN N''ALL''
+                            ELSE
+                                N''AS OF '''''' + CAST(SYSUTCDATETIME() AS nvarchar(MAX)) + ''''''''
+                            END
+                    ELSE
+                        N''''
+                    END 
+                    + ''')
+                                                                             END
+                                                                        ,N'/*[ON SPACE]*/'
+                                                                        ,N'                '
+                                                                     )
+                                                                ,N'/*INDENT SPACES*/'
+                                                                ,N'            '
+                                                             )
+                                                        ,N'/*[JOIN CONDITION]*/'
+                                                        ,N''
+                                                     ) + N'
         WHERE
             1 = 1'''                               + @WhereString + N'
 
@@ -4360,8 +5492,36 @@ SELECT
     ,RowsTotal = Counts.RowsTotal
 FROM
     Keys
-    INNER JOIN '                                   + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'        '), N'/*INDENT SPACES*/', N'    '), N'/*[JOIN CONDITION]*/', N'
-        ON [Keys].' + QUOTENAME(@IdentityColumnNameString) + N' = ' + QUOTENAME(@IdentityColumnTableAliasString) + N'.' + QUOTENAME(@IdentityColumnNameString) + N'') + N'
+    INNER JOIN '                                   + REPLACE(REPLACE(REPLACE(CASE WHEN @IsTemporalTableStoredProcedureFlag = 0
+                                                                                      THEN REPLACE(@FromString, N'/*[TEMPORAL TABLE CLAUSE]*/', N'')
+                                                                                 ELSE REPLACE(@FromString, N'/*[TEMPORAL TABLE CLAUSE]*/', N''' + 
+                    CASE WHEN @TemporalForSystemTimeClause IS NOT NULL THEN N'' FOR SYSTEM_TIME '' + 
+                            CASE @TemporalForSystemTimeClause
+                                WHEN ''AS OF'' THEN N''AS OF '''''' + @TemporalForSystemTimeValue + ''''''''
+                                WHEN ''FROM'' THEN N''FROM '''''' + @TemporalForSystemTimeBegin + '''''' TO '''''' + @TemporalForSystemTimeEnd + ''''''''
+                                WHEN ''BETWEEN'' THEN N''BETWEEN '''''' + @TemporalForSystemTimeBegin + '''''' AND '''''' + @TemporalForSystemTimeEnd + ''''''''
+                                WHEN ''CONTAINED IN'' THEN N''CONTAINED IN ('''''' + @TemporalForSystemTimeBegin + '''''', '''''' + @TemporalForSystemTimeEnd + '''''')''
+                                WHEN ''ALL'' THEN N''ALL''
+                            ELSE
+                                N''AS OF '''''' + CAST(SYSUTCDATETIME() AS nvarchar(MAX)) + ''''''''
+                            END
+                    ELSE
+                        N''''
+                    END 
+                    + ''')
+                                                                             END
+
+
+                                                                        ,N'/*[ON SPACE]*/'
+                                                                        ,N'        '
+                                                                     )
+                                                                ,N'/*INDENT SPACES*/'
+                                                                ,N'    '
+                                                             )
+                                                        ,N'/*[JOIN CONDITION]*/'
+                                                        ,N'
+        ON [Keys].' + QUOTENAME(@IdentityColumnNameString) + N' = ' + QUOTENAME(@IdentityColumnTableAliasString) + N'.' + QUOTENAME(@IdentityColumnNameString) + N''
+                                                     ) + N'
     CROSS JOIN Counts
 WHERE
     [Keys].RowNumber > (( @PageNumber -1 ) * @PageSize )
