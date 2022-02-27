@@ -182,7 +182,7 @@ AS
         ** Set varibles
         **********************************************************************************************************************/
         SET @Version = '3.02.05';
-        SET @VersionDate = '20220215';
+        SET @VersionDate = '20220227';
         SET @ScriptVersionName = N'sp_CRUDGen v' + @Version + N' - ' + DATENAME(MONTH, @VersionDate) + N' ' + RIGHT('0' + DATENAME(DAY, @VersionDate), 2) + N', ' + DATENAME(YEAR, @VersionDate);
         SET @ExecuteOutputString = N'';
         SET @UserNameString = CAST(SYSTEM_USER AS nvarchar(MAX));
