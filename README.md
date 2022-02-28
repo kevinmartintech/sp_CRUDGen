@@ -23,7 +23,7 @@ There are paramaters you can set in sp_CRUDGen to customize for your column nami
 |Parameter Name |Description |Default|
 |-------------|-------------|-------------|
 |@GenerateStoredProcedures|0 = Will only create the generated T-SQL to create the stored procedures, 1 = Will also create the stored procedures|0|
-|@SchemaTableOrViewName|NULL = Generate all tables & views, [SCHEMA.TABLEORVIEWNAME] or [TABLEORVIEWNAME] for just one table or view|NULL|
+|@SchemaTableOrViewName|NULL = Generate all tables & views, [SCHEMA.TABLEORVIEWNAME] or [TABLEORVIEWNAME] for just one table or view. **NOTE:** The leading column on the view should be the lowest grain primary key of the results. If there will be multiple contacts from a company returned in the results, ContactId should be the leading key on the view. If the view will only contain results for companies, then the leading column on the view should be CompanyId.|NULL|
 |&nbsp;|&nbsp;|&nbsp;|
 |@GenerateCreate|1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure|1|
 |@GenerateCreateMultiple|1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure|1|
