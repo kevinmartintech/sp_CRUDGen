@@ -2525,7 +2525,7 @@ AS
         SELECT
              '                                        + REPLACE(@SelectString, N'/*INDENT SPACES*/', N'            ') + N'
         FROM
-            '                                         + REPLACE(REPLACE(REPLACE(@FromString, '/*[JOIN CONDITION]*/', ''), N'/*[ON SPACE]*/', N'                '), N'/*INDENT SPACES*/', N'            ');
+            '                                         + REPLACE(REPLACE(REPLACE(REPLACE(@FromString, N'/*[TEMPORAL TABLE CLAUSE]*/', N''), '/*[JOIN CONDITION]*/', ''), N'/*[ON SPACE]*/', N'                '), N'/*INDENT SPACES*/', N'            ');
 
                         IF LEN(@WhereString) > 0
                             BEGIN
@@ -4479,7 +4479,7 @@ INSERT INTO #Keys (
 SELECT
      '                                                     + REPLACE(@SelectString, N'/*INDENT SPACES*/', N'    ') + N'
 FROM
-    '                                                      + REPLACE(REPLACE(REPLACE(@FromString, N'/*[ON SPACE]*/', N'        '), N'/*INDENT SPACES*/', N'    '), N'/*[JOIN CONDITION]*/', N'') + N'
+    '                                                      + REPLACE(REPLACE(REPLACE(REPLACE(@FromString, N'/*[TEMPORAL TABLE CLAUSE]*/', N''), N'/*[ON SPACE]*/', N'        '), N'/*INDENT SPACES*/', N'    '), N'/*[JOIN CONDITION]*/', N'') + N'
 WHERE
     1 = 1'''                                               + @WhereString + N'
 
