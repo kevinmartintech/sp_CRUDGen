@@ -5527,8 +5527,8 @@ FROM
                                                      ) + N'
     CROSS JOIN Counts
 WHERE
-    [Keys].RowNumber > (( @PageNumber -1 ) * @PageSize )
-AND [Keys].RowNumber < (( @PageNumber * @PageSize ) + 1)
+    [Keys].RowNumber > ((CAST(@PageNumber AS bigint) -1 ) * CAST(@PageSize AS bigint))
+AND [Keys].RowNumber < ((CAST(@PageNumber AS bigint) * CAST(@PageSize AS bigint) ) + 1)
 ORDER BY
     [Keys].RowNumber;''
 
