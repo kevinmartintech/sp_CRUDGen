@@ -181,8 +181,8 @@ AS
         /**********************************************************************************************************************
         ** Set varibles
         **********************************************************************************************************************/
-        SET @Version = '3.02.06';
-        SET @VersionDate = '20220706';
+        SET @Version = '3.02.07';
+        SET @VersionDate = '20220719';
         SET @ScriptVersionName = N'sp_CRUDGen v' + @Version + N' - ' + DATENAME(MONTH, @VersionDate) + N' ' + RIGHT('0' + DATENAME(DAY, @VersionDate), 2) + N', ' + DATENAME(YEAR, @VersionDate);
         SET @ExecuteOutputString = N'';
         SET @UserNameString = CAST(SYSTEM_USER AS nvarchar(MAX));
@@ -5168,7 +5168,7 @@ Copy just the T-SQL below this block comment into a new query window to execute.
 **              metrics tracked in DMVs when using the OPTION (RECOMPILE) hint.
 **
 ** Notes:       Using a view instead of a starting table could be the best way to craft a generated search store 
-**              procedure. Creating a view allows you to specify the tables/columns/joins that are used in the serch 
+**              procedure. Creating a view allows you to specify the tables/columns/joins that are used in the searcg 
 **              stored proecture generation.
 **
 **              Assess enabling ''Optimize for AdHoc Workloads'' if the adhoc plan cache is 20-30% of the total plan cache.
