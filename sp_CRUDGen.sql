@@ -79,7 +79,8 @@ GO
 **********************************************************************************************************************/
 ALTER PROCEDURE dbo.sp_CRUDGen (
     @GenerateStoredProcedures  bit           = 0                        /* 0 = Will only create the generated T-SQL to create the stored procedures, 1 = Will also create the stored procedures */
-   ,@SchemaTableOrViewName     nvarchar(200) = NULL                     /* NULL = Generate all tables & views, [SCHEMA.TABLEORVIEWNAME] or [TABLEORVIEWNAME] for just one table or view */
+   ,@SchemaTableOrViewName     nvarchar(200) = NULL                     /* NULL = Generate all tables with prefix & views, [SCHEMA.TABLEORVIEWNAME] or [TABLEORVIEWNAME] for just one table or view */
+   ,@PrefixTable               nvarchar(5)   = NULL                     /* NULL = Generate all tables, not empty will generate for tables with prefix */
    ,@GenerateCreate            bit           = 1                        /* 1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure */
    ,@GenerateCreateMultiple    bit           = 1                        /* 1 = Generate the Create stored procedure, 0 = Will not generate the Create stored procedure */
    ,@GenerateRead              bit           = 1                        /* 1 = Generate the Read stored procedure, 0 = Will not generate the Read stored procedure */
@@ -384,6 +385,7 @@ AS
             )                                       AS P
         WHERE
             (T.name = @TableName OR @TableName IS NULL)
+		AND ((T.name like @PrefixTable + '%' OR @PrefixTable IS NULL) AND T.name <> 'sysdiagrams')
         AND (S.name = @SchemaName OR @SchemaName IS NULL)
         ORDER BY
             S.name
