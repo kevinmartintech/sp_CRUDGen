@@ -38,20 +38,20 @@ There are paramaters you can set in sp_CRUDGen to customize for your column nami
 |@GenerateSearch|1 = Generate the Search stored procedure, 0 = Will not generate the Search stored procedure|1|
 |@SearchSeparatorString|Set this string to match your separator used when passing in a search parameter using the 'Between', 'BetweenWithBlanks', 'NotBetween', and 'NotBetweenWithBlanks' operators|' to '|
 |&nbsp;|&nbsp;|&nbsp;|
-|@RowCreatePersonColumnName|Is the column name used in your tables for the person who created a row. FOREIGN KEY REFERENCES to a Person table.|RowCreatePersonId|
-|@RowCreatePersonInclude|1 = Will generate table joins to the person table, 0 = Will not generate table joins to the person table|0|
-|@RowCreateTimeColumnName|Is the column name used in your tables to capture the datetime when the row was created.|RowCreateTime|
-|@RowCreateTimeFunction|Is the system date function you want used in your tables for the @RowCreateTimeColumnName to capture when the row was created. {SYSDATETIMEOFFSET(), SYSUTCDATETIME(), SYSDATETIME(), GETUTCDATE(), GETDATE(), CURRENT_TIMESTAMP}|SYSDATETIMEOFFSET()|
+|@CreatePersonColumnName|Is the column name used in your tables for the person who created a row. FOREIGN KEY REFERENCES to a Person table.|CreatePersonId|
+|@CreatePersonInclude|1 = Will generate table joins to the person table, 0 = Will not generate table joins to the person table|0|
+|@CreateTimeColumnName|Is the column name used in your tables to capture the datetime when the row was created.|CreateTime|
+|@CreateTimeFunction|Is the system date function you want used in your tables for the @CreateTimeColumnName to capture when the row was created. {SYSDATETIMEOFFSET(), SYSUTCDATETIME(), SYSDATETIME(), GETUTCDATE(), GETDATE(), CURRENT_TIMESTAMP}|SYSDATETIMEOFFSET()|
 |&nbsp;|&nbsp;|&nbsp;|
-|@RowUpdatePersonColumnName|Is the column name used in your tables for the person who updated a row. FOREIGN KEY REFERENCES to a Person table.|RowUpdatePersonId|
-|@RowUpdatePersonInclude|1 = Will generate table joins to the person table, 0 = Will not generate table joins to the person table|0|
-|@RowUpdateTimeColumnName|Is the column name used in your tables to capture the datetime when the row was last updated.|RowUpdateTime|
-|@RowUpdateTimeFunction|Is the system date function you want used in your tables for the @RowUpdateTimeColumnName to capture when the row was updated.  {SYSDATETIMEOFFSET(), SYSUTCDATETIME(), SYSDATETIME(), GETUTCDATE(), GETDATE(), CURRENT_TIMESTAMP}|SYSDATETIMEOFFSET()|
+|@ModifyPersonColumnName|Is the column name used in your tables for the person who updated a row. FOREIGN KEY REFERENCES to a Person table.|ModifyPersonId|
+|@ModifyPersonInclude|1 = Will generate table joins to the person table, 0 = Will not generate table joins to the person table|0|
+|@ModifyTimeColumnName|Is the column name used in your tables to capture the datetime when the row was last updated.|ModifyTime|
+|@ModifyTimeFunction|Is the system date function you want used in your tables for the @ModifyTimeColumnName to capture when the row was updated.  {SYSDATETIMEOFFSET(), SYSUTCDATETIME(), SYSDATETIME(), GETUTCDATE(), GETDATE(), CURRENT_TIMESTAMP}|SYSDATETIMEOFFSET()|
 |&nbsp;|&nbsp;|&nbsp;|
-|@RowVersionStampColumnName|Is the column name in your tables for the rowversion/timestamp used for optimistic concurrency in the delete and update stored procedures.|RowVersionStamp|
+|@VersionStampColumnName|Is the column name in your tables for the rowversion/timestamp used for optimistic concurrency in the delete and update stored procedures.|VersionStamp|
 |&nbsp;|&nbsp;|&nbsp;|
-|@TemporalRowStartColumName|Is the system-versioned temporal tables column name in your tables for the start period (GENERATED ALWAYS AS ROW START). This column will be ignored for inserts and deletes.|RowValidFromTime|
-|@TemporalRowEndColumName|Is the system-versioned temporal tables column name in your tables for the end period (GENERATED ALWAYS AS ROW END). This column will be ignored for inserts and deletes.|RowValidToTime|
+|@ValidFromTimeColumName|Is the system-versioned temporal tables column name in your tables for the start period (GENERATED ALWAYS AS ROW START). This column will be ignored for inserts and deletes.|ValidFromTime|
+|@ValidToTimeColumName|Is the system-versioned temporal tables column name in your tables for the end period (GENERATED ALWAYS AS ROW END). This column will be ignored for inserts and deletes.|ValidToTime|
 |@ForceTemporalForView|1 = Forces the view to allow temporal functionality, 0 = The view will not allow temporal functionality|0|
 |&nbsp;|&nbsp;|&nbsp;|
 |@VersionCheckMode|1 = Will only return the version number and not execute, 0 = Will execute this stored procedure|0|
